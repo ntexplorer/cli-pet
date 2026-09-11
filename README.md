@@ -22,7 +22,7 @@ A pixel-art virtual pet that lives in your terminal. Single file, zero dependenc
 
 ## See it move
 
-![demo screencast](docs/assets/demo.svg)
+![demo screencast](docs/assets/demo.gif)
 
 *A full life in 40 seconds: pick an egg → feed, pet and bathe a slime → a dragon RPS match → the career dashboard → and eventually, a grave. Recorded from real output — no mockups anywhere in this README.*
 

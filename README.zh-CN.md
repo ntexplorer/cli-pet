@@ -20,7 +20,7 @@
 
 ## 动图先行
 
-![demo screencast](docs/assets/demo.svg)
+![demo screencast](docs/assets/demo.gif)
 
 *40 秒过完一生：选蛋 → 喂食/摸摸/洗澡 → 和小火龙猜一局拳 → 生涯数据面板 → 最后，一座墓碑。全部录制自真实运行输出 —— 本 README 里没有任何示意图/手绘 mock。*
 
