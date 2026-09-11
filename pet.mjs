@@ -454,6 +454,8 @@ let TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.col
 if (process.stdout.on) process.stdout.on('resize', () => {
   TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.columns) || TERM_W, 120))
 })
+function dispW(s) { let w = 0; for (const ch of s) w += ch.charCodeAt(0) < 0x80 ? 1 : 2; return w }
+function sliceW(s, budget) { let w = 0, out = ''; for (const ch of s) { w += ch.charCodeAt(0) < 0x80 ? 1 : 2; if (w > budget) break; out += ch } return out }
 function at(row, col, text) { if (col > TERM_W - 1 || row > 24 || row < 1) return; process.stdout.write(`${ESC}${row};${col}H${text}`) } // 越界保护: 防换行炸屏
 function renderStars() {
   const h = new Date().getHours()
@@ -501,7 +503,7 @@ function buttonBar(row) {
   ]
   if (S.named) defs = defs.filter(d => d[2] !== 'rename') // 起名一次性, 定名后收起
   const gap = 1
-  const totalW = defs.reduce((w, [k, label]) => w + `[${k} ${label}]`.length + 3 + gap, 0) // +3 冷却后缀余量
+  const totalW = defs.reduce((w, [k, label]) => w + dispW(`[${k} ${label}]`) + 3 + gap, 0) // +3 冷却后缀余量
   const perRow = 3 + totalW > TERM_W ? 5 : defs.length // 窄屏折两行(前5后5)
   let col = 3, r = row
   defs.forEach(([k, label, kind], i) => {
@@ -513,8 +515,8 @@ function buttonBar(row) {
       if (left > 0) { text = `[${k} ${label}·${left}s]`; style = dim + fg(110, 110, 120) }
     }
     at(r, col, style + text + R)
-    hotButtons.push({ row: r, c0: col, c1: col + text.length - 1, kind })
-    col += text.length + gap
+    hotButtons.push({ row: r, c0: col, c1: col + dispW(text) - 1, kind })
+    col += dispW(text) + gap
   })
 }
 // 动作特效(FX): 每动作 2s 粒子动画, frame 驱动, 与气泡并存
@@ -622,18 +624,23 @@ function render() {
   hotButtons.push({ row: rowB + 4, c0: 3, c1: 12, kind: 'toggleStats' }) // 角标热区
 }
 function renderEggSelect() {
-  at(2, 28, bold + fg(255, 255, 255) + '领养一只宠物吧（键盘 1/2/3 或点击）' + R)
+  const EW = Math.min(TERM_W, +(process.stdout.columns || TERM_W))
+  const title = '领养一只宠物吧（键盘 1/2/3 或点击）'
+  at(2, Math.max(1, ((EW - dispW(title)) >> 1) + 1), bold + fg(255, 255, 255) + title + R)
   const opts = [['slime', '果冻史莱姆', 'Q弹 变色 小巧'], ['hamster', '像素小仓鼠', '颊囊 圆滚 藏粮'], ['dragon', '小火龙', '喷火 成长 帅气']]
+  const pitch = Math.floor(EW / 3)
   opts.forEach(([sp, name, desc], i) => {
-    const left = 8 + i * 22
-    at(5, left, bold + `${i + 1}. ${name}` + R)
+    const left = 1 + i * pitch
     const egg = ART.egg[sp][0]
-    drawArt(egg, 7, left + 5)
-    at(14, left, dim + desc + R)
+    const head = `${i + 1}. ${name}`
+    const cardL = left + Math.max(0, (pitch - Math.max(dispW(head), egg[0].length)) >> 1)
+    at(5, cardL, bold + sliceW(head, pitch - 2) + R)
+    drawArt(egg, 7, Math.max(left, left + ((pitch - egg[0].length) >> 1)))
+    at(14, Math.max(left, left + ((pitch - dispW(desc)) >> 1)), dim + sliceW(desc, pitch - 2) + R)
   })
   opts.forEach(([, ,], i) => {
-    const left = 8 + i * 22
-    for (let r = 5; r <= 13; r++) hotButtons.push({ row: r, c0: left, c1: left + 16, kind: 'pickEgg' + (i + 1) })
+    const left = 1 + i * pitch
+    for (let r = 5; r <= 13; r++) hotButtons.push({ row: r, c0: left, c1: left + pitch - 2, kind: 'pickEgg' + (i + 1) })
   })
 }
 function renderGrave() {
