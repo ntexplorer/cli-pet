@@ -1,0 +1,23 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  smoke:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [18, 20]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check
+        run: node --check pet.mjs
+      - name: Headless run smoke (egg-select renders)
+        run: |
+          node -e "const{spawn}=require('child_process');const p=spawn(process.execPath,['pet.mjs'],{env:{...process.env,PET_WIDTH:'80'},stdio:['ignore','pipe','inherit']});let n=0;p.stdout.on('data',d=>n+=d.length);setTimeout(()=>{p.kill();setTimeout(()=>{console.log('rendered bytes:',n);process.exit(n>1000?0:1)},300)},3000)"
+        shell: bash
