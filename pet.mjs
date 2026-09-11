@@ -154,7 +154,7 @@ function defaultState() {
     dirtySince: 0, dyingSince: 0, diedAt: 0, deathCause: '',
     heartSince: 0, sickSince: 0, obeseSince: 0, exhaustSince: 0, // 四条异常死线计时(离线冻结)
     careScore: 0,
-    stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0, rps: 0 },
+    stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0, rps: 0, chat: 0 },
     achievements: [],
     memorial: [],              // [{name,species,days,cause,generation}]
     log: [],                   // 最近事件 [{t,text}]
@@ -197,7 +197,7 @@ const SICK_MS = SICK_AFTER_DIRTY_H * H / SCALE
 const DEATH_MS = 2 * H / SCALE   // 异常状态死线(心碎/病/肥胖/精竭): 2h
 const LIFESPAN_DAYS = 30         // 寿终正寝(荣誉死法)
 // 动作冷却(毫秒, 测试档同步加速); 配合阈值拒绝防狂点 — 数值健康时动作同样会被拒绝
-const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3, dose: 180e3, rps: 180e3 }
+const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3, dose: 180e3, rps: 180e3, chat: 60e3 }
 for (const _k in CD) CD[_k] /= SCALE
 function dec(v, rate, h) { return Math.max(0, v - rate * h) }
 function applyDecay(h) {
@@ -444,6 +444,44 @@ function rpsThrow(i) {
     save()
   }
 }
+// ---------- 闲聊: 按状态生成话题的零门槛陪伴 ----------
+const CHAT_POOL = {
+  baby:  ['（歪着脑袋，似懂非懂地盯着你的嘴型）', '（试图模仿你说话，发出咕咕声）', '（轻轻咬了咬你的手指，又赶紧舔了舔）'],
+  adult: ['（听你讲完，郑重地点了点头）', '（用头蹭了蹭你的手背）', '（突然看向别处，好像听到了什么）', '（打了个哈欠，但耳朵一直朝着你）'],
+  elder: ['（慢慢眨了眨眼，像是想起了很久以前的事）', '（讲起年轻时的冒险，尾巴尖都在发光）', '（把头轻轻靠在你掌心，很久没有移开）'],
+}
+const CHAT_COND = [ // 低状态优先: 闲聊也透露需求
+  ['__sick',   ['（蔫蔫地应了一声，鼻子热热的…）', '（咳了两声，又打起精神看你）']],
+  ['__dying',  ['（用尽全身力气蹭了蹭你的指尖）', '（眼睛亮了一下，一直看着你）']],
+  ['hunger',   ['（肚子咕噜声打断了对话…）', '（目光偷偷飘向食盆）']],
+  ['thirst',   ['（嗓子干得说不出话，舔了舔嘴）']],
+  ['energy',   ['（听着听着，眼皮越来越沉…）']],
+  ['mood',     ['（把头埋进你掌心，闷闷不出声）']],
+]
+function pickChatLine() {
+  for (const [k, lines] of CHAT_COND) {
+    const hit = k === '__sick' ? isSick() : k === '__dying' ? S.stage === 'dying' : S[k] < 30
+    if (hit) return lines[(Math.random() * lines.length) | 0]
+  }
+  const gs = grownStage()
+  const earned = S.achievements.filter(id => ACHIEVEMENTS.some(a => a.id === id && a.id !== 'lifespan'))
+  if (earned.length && Math.random() < 0.3) {
+    const a = ACHIEVEMENTS.find(x => x.id === earned[(Math.random() * earned.length) | 0])
+    if (a) return `（得意地展示了${a.name}勋章，等你夸它）`
+  }
+  const pool = CHAT_POOL[gs in CHAT_POOL ? gs : 'adult']
+  return pool[(Math.random() * pool.length) | 0]
+}
+function doChat() {
+  if ((S.stage !== 'alive' && S.stage !== 'dying') || S.rps) return
+  if (!S.awake) { bubble('（睡梦中嘟囔了一句梦话）'); return }
+  const left = Math.ceil((CD.chat - (Date.now() - (S.lastAct.chat || 0))) / 1000)
+  if (left > 0) { bubble(`它在整理思绪…（${left}s）`); return }
+  S.lastAct.chat = Date.now()
+  S.mood = clamp(S.mood + 2); S.stats.chat = (S.stats.chat || 0) + 1
+  bubble(pickChatLine(), 10)
+  S.mood = Math.min(S.mood, moodCap()); checkAchievements(); save(); render()
+}
 function newEgg() {
   // 保留 memorial/generation+1, 其余重置为 eggSelect
   const memorial = S.memorial, gen = (S.generation || 1), ach = S.achievements, stats = S.stats
@@ -545,12 +583,12 @@ function bar(label, v, color, extra = '') {
   return `${label} ${bg(...color)}${' '.repeat(filled)}${R}${dim}${'·'.repeat(w - filled)}${R} ${String(Math.round(v)).padStart(3)}${extra}`
 }
 const hotButtons = [] // {row, c0, c1, kind}
-const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t', rps: 'g', rps1: '1', rps2: '2', rps3: '3' }
+const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t', rps: 'g', rps1: '1', rps2: '2', rps3: '3', chat: 'c' }
 function buttonBar(row) {
   let defs = [
     ['f', '喂食', 'feed'], ['1', '零食', 'snack'], ['w', '喂水', 'water'], ['b', '洗澡', 'bath'],
     ['p', '玩耍', 'play'], ['s', '睡觉', 'sleepToggle'], ['t', '摸摸', 'touch'], ['d', '吃药', 'dose'],
-    ['g', '猜拳', 'rps'], ['n', '起名', 'rename'],
+    ['g', '猜拳', 'rps'], ['c', '闲聊', 'chat'], ['n', '起名', 'rename'],
     ['r', '重置', 'reset'], ['q', '退出', 'quit'],
   ]
   if (S.named) defs = defs.filter(d => d[2] !== 'rename') // 起名一次性, 定名后收起
@@ -752,7 +790,7 @@ function renderStats() {
   const twoCol = TERM_W >= 66
   // 生涯动作(2列×4行, 最长~40列, 不与右栏col44冲突)
   at(3, 3, dim + '— 生涯动作 —' + R)
-  const acts = [['feed', '喂食'], ['snack', '零食'], ['water', '喂水'], ['bath', '洗澡'], ['play', '玩耍'], ['touch', '摸摸'], ['dose', '吃药'], ['rps', '猜拳']]
+  const acts = [['feed', '喂食'], ['snack', '零食'], ['water', '喂水'], ['bath', '洗澡'], ['play', '玩耍'], ['touch', '摸摸'], ['dose', '吃药'], ['rps', '猜拳'], ['chat', '闲聊']]
   acts.forEach(([k, label], i) => at(4 + Math.floor(i / 2), 3 + (i % 2) * 22, `${label} ${bold}${S.stats[k] || 0}${R}`))
   // 成就(含进度)
   at(9, 3, dim + `— 成就 ${S.achievements.length}/${ACHIEVEMENTS.length} —` + R)
@@ -851,6 +889,7 @@ function setupInput(onAction, onQuit, onRename) {
     else if (k === 't') onAction('touch')
     else if (k === 'd') onAction('dose')
     else if (k === 'g') startRps()
+    else if (k === 'c') doChat()
   }
 }
 function hitTest(row, col) {
