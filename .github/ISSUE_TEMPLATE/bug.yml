@@ -1,0 +1,26 @@
+name: 🐛 Bug report
+description: Something looks or behaves wrong
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened
+      description: A clear description + what you expected instead
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: cli-pet version / commit
+      description: Release tag, or `git log -1 --oneline`
+  - type: input
+    attributes:
+      label: Environment
+      description: OS, terminal (Windows Terminal / wezterm / tmux / iTerm / …), Node version
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      placeholder: e.g. pet --fast → let it get dirty → bathe → …
+  - type: textarea
+    attributes:
+      label: Anything else
+      description: Terminal width, PET_WIDTH overrides, save state oddities (no need to paste full state.json)

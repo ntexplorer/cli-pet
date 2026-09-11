@@ -1,0 +1,25 @@
+name: 💡 Feature / content idea
+description: New species, achievements, chat lines, mechanics, i18n …
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: Your idea
+      description: What and why — the vibe matters (cozy, not needy)
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Kind
+      options:
+        - New species (pixel art)
+        - Achievement / chat lines / theater scenes (one-liners)
+        - Balance tuning
+        - New mechanic / mini-game
+        - i18n / localization
+        - Docs / screenshots
+        - Other
+  - type: textarea
+    attributes:
+      label: Mockup / art (optional)
+      description: For species: a string-array sketch (see CONTRIBUTING.md — one char = one pixel). ASCII is fine.
