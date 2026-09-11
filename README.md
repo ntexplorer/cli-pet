@@ -18,7 +18,7 @@ A pixel-art virtual pet that lives in your terminal. Single file, zero dependenc
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#install)
 [![Release](https://img.shields.io/github/v/release/ntexplorer/cli-pet?include_prereleases)](https://github.com/ntexplorer/cli-pet/releases)
 
-> **Heads-up:** in-game text is currently Simplified Chinese (the project was born Chinese-first). English localization is on the roadmap. Everything else works in any terminal, any language.
+> **Heads-up:** in-game text is currently Simplified Chinese (the project was born Chinese-first). English localization is on the roadmap — [#1](https://github.com/ntexplorer/cli-pet/issues/1). Everything else works in any terminal, any language.
 
 ## See it move
 
@@ -160,7 +160,7 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 - **Can I run two instances?** No — a PID lock refuses the second one to protect the save.
 - **Pane too narrow?** Layout adapts automatically; force a width with `PET_WIDTH=60 pet`.
 - **Does it phone home?** Never. No network, no telemetry.
-- **English UI?** Not yet — in-game text is Chinese for now; it's on the roadmap and help is welcome.
+- **English UI?** Not yet — in-game text is Chinese for now; it's on the roadmap ([#1](https://github.com/ntexplorer/cli-pet/issues/1)) and help is welcome.
 
 ## Contribute
 
