@@ -740,15 +740,15 @@ function renderRps() {
   const frames = ART[S.species][gs === 'baby' ? 'baby' : 'adult']
   drawArt(frames[frame % frames.length], 6, Math.max(2, Math.floor((EW - frames[0][0].length) / 2)))
   const hint = `第 ${S.rps.round} 局 · 出招吧！`
-  at(14, Math.max(1, ((EW - dispW(hint)) >> 1) + 1), dim + hint + R)
+  at(17, Math.max(1, ((EW - dispW(hint)) >> 1) + 1), dim + hint + R)
   const opts = ['1 石头', '2 剪刀', '3 布']
   const pitch = Math.floor((EW - 6) / 3)
   opts.forEach((t, i) => {
     const col = 3 + i * pitch, txt = `[${t}]`
-    at(17, col + Math.max(0, (pitch - dispW(txt)) >> 1), bg(60, 70, 100) + fg(230, 230, 240) + bold + txt + R)
-    for (let r = 16; r <= 18; r++) hotButtons.push({ row: r, c0: col, c1: col + pitch - 2, kind: 'rps' + (i + 1) })
+    at(19, col + Math.max(0, (pitch - dispW(txt)) >> 1), bg(60, 70, 100) + fg(230, 230, 240) + bold + txt + R)
+    for (let r = 18; r <= 20; r++) hotButtons.push({ row: r, c0: col, c1: col + pitch - 2, kind: 'rps' + (i + 1) })
   })
-  at(21, 3, dim + '出招: 键盘 1/2/3 或点击按钮 · [q 罢手离开(不计输赢)]' + R)
+  at(22, 3, dim + '出招: 键盘 1/2/3 或点击按钮 · [q 罢手离开(不计输赢)]' + R)
   renderStars()
 }
 function renderEggSelect() {
