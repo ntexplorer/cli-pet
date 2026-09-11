@@ -104,12 +104,12 @@ const ART = {
   },
   dragon: {
     baby: [
-      ['....Y....', '....RRRR..', '..YRRRRRR.', '...RWRRWR.', '...RRmmRR.', '.F.RRRRRR.F', '.F.RRRRRR.F', '....RRRR...', '...RrrrR...'],
-      ['....Y....', '....RRRR..', '..YRRRRRR.', '...RWRRWR.', '...RRmmRR.', '..FRRRRRRFF', '..FRRRRRRFF', '...fRRRRf..', '...RrrrR...'],
+      ['.Y.....Y.', '.RRRRRRR.', '.RWRRRWR.', '.RRmmmRR.', 'F.RRRRR.F', 'F.RRRRR.F', '..RRRRR..', '...RrR...'],
+      ['.Y.....Y.', '.RRRRRRR.', '.RWRRRWR.', '.RRmmmRR.', '.FRRRRRF.', '.FRRRRRF.', '..RRRRR..', '..RrRrR..'],
     ],
     adult: [
-      ['..Y....Y..', '..YY..YY..', '.....RRRR.....', '....RRRRRR....', '....RWRRWR....', '....RRmmRR....', '.F..RRRRRR..F.', 'FF..RRRRRR..FF', 'FF.RRRRRRRR.FF', '.F.RrRRRRrR.F.', '...RRRRRRRR...', '..RrrrrrrrR...', '..rr.....rr...'],
-      ['..Y....Y..', '..YY..YY..', '.....RRRR.....', '....RRRRRR....', '....RWRRWR....', '....RRmmRR....', 'FF..RRRRRR..FF', '.FF.RRRRRR.FF.', '..FRRRRRRRRF..', '..F.RrRRRRrR.F', '..f.RRRRRRR.f.', '..RrrrrrrrR...', '...rr....rr...'],
+      ['....Y....Y....', '....RRRRRR....', '...RRRRRRRR...', '....RWRRWR....', '....RRmmRR....', '.F..RRRRRR..F.', 'FF..RRRRRR..FF', 'FF.RRRRRRRR.FF', '.F.RrRRRRrR.F.', '...RRRRRRRR...', '..RrrrrrrrR...', '..rr.....rr...'],
+      ['....Y....Y....', '....RRRRRR....', '...RRRRRRRR...', '....RWRRWR....', '....RRmmRR....', 'FF..RRRRRR..FF', '.FF.RRRRRR.FF.', '..FRRRRRRRRF..', '..F.RrRRRRrR.F', '..f.RRRRRRR.f.', '..RrrrrrrrR...', '...rr....rr...'],
     ],
   },
 }
