@@ -340,7 +340,7 @@ function act(kind) {
     }
     case 'snack': {
       if (cdLeft('snack') > 0) { bubble(`零食刚吃过（${cdLeft('snack')}s）`); break }
-      if (S.hunger > 65) { bubble('肚子不饿，不吃零食~'); break }
+      if (S.hunger > 85) { bubble('真的一口都塞不下了~'); break } // 零食诱惑力 > 正餐: 拒绝线更高
       S.hunger = clamp(S.hunger + 8); S.mood = clamp(S.mood + (sick ? 6 : 12)); S.weight += 0.25; S.stats.snack++
       S.careScore++; S.lastAct.snack = Date.now()
       bubble('零食！开心转圈！'); break

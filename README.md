@@ -57,7 +57,7 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 |----|--------|--------|
 | `1` `2` `3` | pick egg | choose species |
 | `f` | feed meal | hunger +32, weight +0.15 |
-| `1` | snack | hunger +8, mood +12, fatter |
+| `1` | snack | hunger +8, mood +12, fatter — way more tempting than meals (refused only above 85 hunger) |
 | `w` | water | thirst +35 |
 | `b` | bath | clean +45, cures sickness (root cure) |
 | `d` | medicine | only when sick: instant cure, mood −20, energy −15 — dirt remains, re-sickens in 2 h unless bathed |
