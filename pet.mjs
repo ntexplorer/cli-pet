@@ -29,8 +29,8 @@ const SPECIES = {
   hamster:{ label: '像素小仓鼠', baseWeight: 0.8, color: [210, 160, 90] },
   dragon:{ label: '小火龙',     baseWeight: 2.5, color: [255, 80, 60] },
 }
-// 每小时衰减 — 按 8h 工作日挂机调校: 每 35-45 分钟有一件事可做
-const DECAY = { hunger: 15, thirst: 20, clean: 8, mood: 12, weight: 0.1 }
+// 每小时衰减 — 按 8h 工作日挂机调校: 每 25-30 分钟有一件事可做
+const DECAY = { hunger: 20, thirst: 26, clean: 11, mood: 18, weight: 0.1 }
 const SICK_AFTER_DIRTY_H = 2       // 洁净<15 持续 2h 生病
 const DYING_GRACE_H = 4            // 饱腹&口渴双 0 → 弥留 4h(全衰竭压缩至 1h)
 const MOURN_H = 2                  // 死亡后守灵
@@ -200,7 +200,7 @@ function dec(v, rate, h) { return Math.max(0, v - rate * h) }
 function applyDecay(h) {
   if (S.stage !== 'alive' && S.stage !== 'dying') return
   const sleeping = isSleepTime() || !S.awake
-  S.hunger = dec(S.hunger, sleeping ? DECAY.hunger - 4 : DECAY.hunger, h) // 睡着饿得慢 15→11/h
+  S.hunger = dec(S.hunger, sleeping ? DECAY.hunger - 4 : DECAY.hunger, h) // 睡着饿得慢 20→16/h
   S.thirst = dec(S.thirst, DECAY.thirst, h)
   S.clean = dec(S.clean, DECAY.clean, h)
   S.mood = dec(S.mood, DECAY.mood, h)

@@ -18,7 +18,7 @@ A pixel-art virtual pet that lives in your terminal. Single-file, zero-dependenc
 ## Features
 
 - **Three species** — slime / hamster / dragon, each with distinct egg sprites, baby & adult pixel art (adult form unlocked through care)
-- **Five stats** — hunger, thirst, cleanliness, mood, energy; they decay in real time, tuned for an 8-hour workday: something to do every 35–45 minutes
+- **Five stats** — hunger, thirst, cleanliness, mood, energy; they decay in real time, tuned for an 8-hour workday: something to do every 25–30 minutes
 - **Full life arc** — egg (3 min hatch, with cracks & wiggles) → life → dying (4 h rescuable window) → grave → mourning → next generation, with a memorial wall and generation counter
 - **Six ways to go** — 🥀 starvation · 💔 broken heart · 🤒 untreated sickness · 🍰 overfeeding · ⚡ exhaustion · ⭐ old age (30 days, honorary). Unseen causes show as `???` in the death codex (Dead-Cells style); active death timers show a red countdown badge on screen
 - **Interlocked needs** — pets refuse to play hungry/thirsty, won't eat with a dry throat (water first), can't sleep unless tired, won't nap at full energy; falling asleep anywhere requires actually sleeping it off
@@ -73,10 +73,10 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 
 | Mechanic | Value |
 |----------|-------|
-| Decay (per hour) | thirst −20 · hunger −15 (−11 asleep) · mood −12 · clean −8 |
-| Refusal thresholds | won't eat >65 hunger · drink >65 thirst · bathe >60 clean · play >90 mood |
+| Decay (per hour) | thirst −26 · hunger −20 (−16 asleep) · mood −18 · clean −11 |
+| Refusal thresholds | won't eat >65 hunger · drink >65 thirst · bathe >60 clean · play >90 mood · snack >85 hunger |
 | Cooldowns | feed/water 90 s · touch 60 s · play 3 min · snack 5 min · bath 10 min · medicine 3 min |
-| Typical cadence | water ~every 1.7 h · feed ~2 h · play ~2.5 h · bath half-day |
+| Typical cadence | play ~every 30 min · water ~1.3 h · feed ~1.75 h · bath ~4 h — something to do every 25–30 min |
 | Sickness | clean < 15 for 2 h → appetite halved, mood capped; bath cures the root, medicine the symptom |
 | Dying | hunger AND thirst both 0 → 4 h rescue window (feed + water); total collapse (energy & mood also 0) compresses it to 1 h |
 | Death timers | each terminal state (mood 0 · sick · 1.6× obese · awake at 0 energy) kills after 2 h if untreated — red countdown badge warns you |
