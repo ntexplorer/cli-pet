@@ -1,57 +1,120 @@
+**English** | [简体中文](README.zh-CN.md)
+
 # cli-pet
 
-A pixel-art virtual pet that lives in your terminal. Single-file, zero-dependency Node.js TUI — open a pane, hatch an egg, and check in on it while you work.
-
 ```
- ┌────────────────────────────────────────────┐
- │  小煤球 · 果冻史莱姆 · 幼年 · 世代 1        │
- │           ⠠⠞⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛          │
- │        ╭──────────────╮                   │
- │        │   ( • ‿ • )  │  「肚子咕噜叫…」    │
- │        ╰──────────────╯                   │
- │  饱腹 ▓▓▓░░░░  口渴 ▓▓▓▓▓░░               │
- │  洁净 ▓▓▓▓▓▓░  心情 ▓▓▓░░░               │
- │  [f 喂食][1 零食][w 喂水][b 洗澡][p 玩耍]   │
- └────────────────────────────────────────────┘
+  ┌────────────────────────────────────────────────┐
+  │   🥚  →  🐣  →  🐾  →  ⭐      c l i - p e t   │
+  │        a tiny life in your terminal            │
+  └────────────────────────────────────────────────┘
 ```
 
-## Features
+A pixel-art virtual pet that lives in your terminal. Single file, zero dependencies, zero network — open a pane, hatch an egg, and check in on it while you work.
 
-- **Three species** — slime / hamster / dragon, each with distinct egg sprites, baby & adult pixel art (adult form unlocked through care)
-- **Five stats** — hunger, thirst, cleanliness, mood, energy; they decay in real time, tuned for an 8-hour workday: something to do every 25–30 minutes
-- **Full life arc** — egg (3 min hatch, with cracks & wiggles) → life (baby → adult → **elder from day 21**: fading but cozy) → dying (4 h rescuable window) → grave → mourning → next generation, with a memorial wall and generation counter
-- **Six ways to go** — 🥀 starvation · 💔 broken heart · 🤒 untreated sickness · 🍰 overfeeding · ⚡ exhaustion · ⭐ old age (30 days, honorary). Unseen causes show as `???` in the death codex (Dead-Cells style); active death timers show a red countdown badge on screen
-- **Interlocked needs** — pets refuse to play hungry/thirsty, won't eat with a dry throat (water first), can't sleep unless tired, won't nap at full energy; falling asleep anywhere requires actually sleeping it off
-- **Medicine** — `d` gives medicine: hard-gated (only when sick), cures symptoms instantly but the dirt that caused it remains — bathe for a real cure; bitter meds cost mood & energy
-- **Wandering** — pets stroll left/right on their own, turn to face their heading, and shiver in their final hours
-- **Offline-friendly** — no background process; time passes via catch-up math on next launch, but your pet **never dies while you're away** (stats have an offline floor; dying clock freezes)
-- **Needy visuals** — low stats show on the sprite: dirt spots when dirty, droopy mouth when hungry, drowsy blink when tired, desaturation when sad; pets actively beg (water bowl > food > play > bath priority)
-- **Day/night ambience** — real-clock sky label (morning/day/dusk/night) and stars at night; sleepy 23:00–7:00
-- **Keyboard + mouse** — single-key actions and SGR-1006 mouse clicks (buttons, click-the-pet-to-pet)
-- **Adaptive layout** — auto-fits narrow panes (two-row buttons, hidden log column); `PET_WIDTH` env override
-- **Weight system** — overfeed and it visibly gets wider (and mood-capped); 2 food types (meal vs snack)
-- **Action feedback** — every action plays a 2 s particle animation (falling food, water drops, rising bubbles, hearts…)
-- **Anti-spam actions** — pets refuse what they don't need (won't eat if not hungry) and each action has a cooldown shown live on its button
-- **Stats dashboard** — press `Tab` (or click the corner badge) for career stats, achievement progress (e.g. 12/50), the memorial wall and full log
-- **10 achievements** — career-wide, survive across generations
-- **Random theater** — little scene bubbles every 2–5 min when stats are healthy
-- **Rock-paper-scissors** — `g` starts a best-of-3 match whenever you're just waiting around; each species has throw preferences you can learn, and matches always end with a happier pet
-- **Small talk** — `c` chats with your pet; what it says depends on stats, life stage and earned achievements
-- **`--fast` test mode** — `pet --fast` (or `--fast=120`) speeds the whole clock up ×60 by default: hatch in 3 s, a full life in ~20 min. Great for trying every feature; keep a separate save from your real pet
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Node ≥ 18](https://img.shields.io/badge/node-%E2%89%A5%2018-blue)](#install)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](#install)
+[![Single file](https://img.shields.io/badge/pet.mjs-single%20file-orange)](#install)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](#install)
+[![Release](https://img.shields.io/github/v/release/ntexplorer/cli-pet?include_prereleases)](https://github.com/ntexplorer/cli-pet/releases)
+
+> **Heads-up:** in-game text is currently Simplified Chinese (the project was born Chinese-first). English localization is on the roadmap. Everything else works in any terminal, any language.
+
+## See it move
+
+![demo screencast](docs/assets/demo.svg)
+
+*A full life in 40 seconds: pick an egg → feed, pet and bathe a slime → a dragon RPS match → the career dashboard → and eventually, a grave. Recorded from real output — no mockups anywhere in this README.*
+
+## Gallery
+
+| Pick an egg | Daily care | Rock-paper-scissors |
+|:---:|:---:|:---:|
+| ![egg select](docs/assets/egg-select.png) | ![main screen](docs/assets/main.png) | ![rps](docs/assets/rps.png) |
+
+| Career dashboard | The end (of this one) |
+|:---:|:---:|
+| ![stats](docs/assets/stats.png) | ![grave](docs/assets/grave.png) |
+
+## Why
+
+Terminals are where we live all day — so a pet should live there too, without stealing attention:
+
+- **Workday-paced, not needy.** Stats decay is tuned so something is worth doing every 25–30 minutes across an 8-hour day. Not a fire alarm, more like a colleague who occasionally wants a snack.
+- **Never punishes you for having a life.** No background process, no notifications. Time catches up on next launch, and your pet **cannot die while you're away** — offline stats have a floor and the dying clock freezes.
+- **One file, zero everything.** `pet.mjs` is the whole program. No install script, no package.json, no network, no telemetry. Read it in one sitting (it's ~1000 lines).
+- **A real arc.** Egg → baby → adult → elder (day 21+) → one of six deaths → mourning → next generation. Achievements and the memorial wall carry across generations.
 
 ## Install
 
-Requires **Node.js ≥ 18** (native fetch not even needed — zero network, zero deps; the version floor is for tested behavior).
+Requires **Node.js ≥ 18**. That's the whole dependency list.
+
+```bash
+# get it
+git clone https://github.com/ntexplorer/cli-pet.git ~/.config/cli-pet
+node ~/.config/cli-pet/pet.mjs
+```
 
 ```powershell
-# just run it
-node pet.mjs
+# PowerShell flavor
+git clone https://github.com/ntexplorer/cli-pet.git "$env:USERPROFILE\.config\cli-pet"
+node "$env:USERPROFILE\.config\cli-pet\pet.mjs"
+```
 
-# or add to your PowerShell $PROFILE
-function pet { node "$HOME\.config\cli-pet\pet.mjs" @args }
+Make it a command:
+
+```bash
+# bash / zsh: ~/.bashrc or ~/.zshrc
+alias pet="node $HOME/.config/cli-pet/pet.mjs"
+```
+
+```powershell
+# PowerShell: $PROFILE
+function pet { node "$env:USERPROFILE\.config\cli-pet\pet.mjs" @args }
 ```
 
 Your save lives next to the script as `state.json` (gitignored). Delete it to start over — or use the in-app `r` reset, which keeps achievements and the memorial wall.
+
+<details>
+<summary><b>Optional: give it a permanent pane</b> (any terminal works — it's just text)</summary>
+
+| Terminal | Recipe |
+|----------|--------|
+| Windows Terminal | split a pane (`Alt+Shift+D`) and run `pet`; or from a terminal: `wt -w 0 nt pwsh -NoLogo -c pet` |
+| tmux | `tmux split-window -h -p 30 'pet'` |
+| wezterm *(author's pick)* | bind a key to a 3-pane workspace: opencode / sleev / pet — see the author's [dotfiles](https://github.com/ntexplorer/ai-dev-setup) |
+
+If the pane is narrow the layout adapts automatically; force a width with `PET_WIDTH=60 pet`.
+</details>
+
+## Features
+
+**Life & body**
+- **Three species** — slime / hamster / dragon, each with distinct egg sprites, baby & adult pixel art (adult form unlocked through care)
+- **Five stats** — hunger, thirst, cleanliness, mood, energy; real-time decay
+- **Full life arc** — egg (3 min hatch, with cracks & wiggles) → baby → adult → **elder from day 21** (fading but cozy) → dying (4 h rescuable window) → grave → mourning → next generation
+- **Weight system** — overfeed and it visibly gets wider (and mood-capped); meals vs snacks, and snacks are *way* more tempting than meals
+- **Six ways to go** — 🥀 starvation · 💔 broken heart · 🤒 untreated sickness · 🍰 overfeeding · ⚡ exhaustion · ⭐ old age (30 days, honorary). Unseen causes show as `???` in the death codex (Dead-Cells style)
+
+**Things to do together**
+- **Rock-paper-scissors** — `g` starts a best-of-3 match; each species has throw preferences you can learn, elders get stubborn, and matches always end with a happier pet
+- **Small talk** — `c` chats; what it says depends on stats, life stage and earned achievements — sick pets whine, elders reminisce
+- **Begging & theater** — needy pets beg (water bowl > food > play > bath priority); healthy ones improvise little scenes every 2–5 min
+
+**Terminal bling**
+- **Needy visuals** — dirt spots when dirty, droopy mouth when hungry, drowsy blink when tired, desaturation when sad, gray fur in old age
+- **Wandering** — pets stroll left/right on their own, turn to face their heading, and shiver in their final hours
+- **Day/night ambience** — real-clock sky label (morning/day/dusk/night) and stars at night; sleepy 23:00–7:00
+- **Action feedback** — every action plays a 2 s particle animation (falling food, water drops, rising bubbles, hearts…)
+- **Keyboard + mouse** — single-key actions and SGR-1006 mouse clicks (buttons, click-the-pet-to-pet)
+
+**Player QoL**
+- **Offline-friendly** — no process, no network; catch-up math on launch, never dies while away
+- **Adaptive layout** — auto-fits narrow panes; `PET_WIDTH` env override
+- **Stats dashboard** — `Tab` for career stats, achievement progress (e.g. 12/50), memorial wall, full log
+- **10 achievements** — career-wide, survive across generations
+- **Anti-spam actions** — pets refuse what they don't need; each action shows a live cooldown on its button
+- **`--fast` test mode** — `pet --fast` (or `--fast=120`) speeds the clock ×60: hatch in 3 s, a full life in ~20 min. Try every feature; keep it away from your real pet's save
 
 ## Controls
 
@@ -59,15 +122,15 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 |----|--------|--------|
 | `1` `2` `3` | pick egg | choose species |
 | `f` | feed meal | hunger +32, weight +0.15 |
-| `1` | snack | hunger +8, mood +12, fatter — way more tempting than meals (refused only above 85 hunger) |
+| `1` | snack | hunger +8, mood +12, fatter — refused only above 85 hunger |
 | `w` | water | thirst +35 |
 | `b` | bath | clean +45, cures sickness (root cure) |
 | `d` | medicine | only when sick: instant cure, mood −20, energy −15 — dirt remains, re-sickens in 2 h unless bathed |
 | `p` | play | mood +28, energy −15, clean −5 (playing gets dirty) — refused if hungry <20, thirsty <20, or dying |
 | `s` | sleep toggle | recovers energy fast (40/h; 4/h while awake), hungers slower asleep — other actions refused while sleeping |
 | `t` | pet it | mood +10 (60 s cooldown) — or click the pet; gets annoyed (mood −3) past 2 pets per rolling hour (3 when elderly, +12 each) |
-| `g` | rock-paper-scissors | best-of-3 match; each species has favorite throws you can learn — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
-| `c` | small talk | mood +2 (60 s cooldown); topics react to stats, age and achievements — sick pets whine, elders reminisce |
+| `g` | rock-paper-scissors | best-of-3 — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
+| `c` | small talk | mood +2 (60 s cooldown); topics react to stats, age and achievements |
 | `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
 | `n` | name (once) | up to 8 chars, CJK OK — the name sticks afterwards |
 | `r` | reset | keeps memorial & achievements, `y` to confirm |
@@ -84,7 +147,7 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 | Sickness | clean < 15 for 2 h → appetite halved, mood capped; bath cures the root, medicine the symptom |
 | Dying | hunger AND thirst both 0 → 4 h rescue window (feed + water); total collapse (energy & mood also 0) compresses it to 1 h |
 | Death timers | each terminal state (mood 0 · sick · 1.6× obese · awake at 0 energy) kills after 2 h if untreated — red countdown badge warns you |
-| Elder stage | from day 21: smaller meals (+22), play tires it (−22 energy, +20 mood), lighter sleep (30/h), slower metabolism (gains weight easier), lonelier (mood −22/h), grayer & slower sprite — but cozier: 3 free pets/h (+12), richer chats (+4), stubborn RPS throws · ⭐ days-left badge |
+| Elder stage | from day 21: smaller meals (+22), play tires it (−22 energy, +20 mood), lighter sleep (30/h), slower metabolism, lonelier (mood −22/h), grayer & slower sprite — but cozier: 3 free pets/h (+12), richer chats (+4), stubborn RPS throws · ⭐ days-left badge |
 | Old age | survive 30 days → ⭐ honorary passing (achievement 三十日谈) |
 | Death codex | Tab → 6-entry gallery; unseen causes show `???` |
 | Interlocks | play needs hunger ≥20 & thirst ≥20 · eating needs thirst ≥20 · sleep needs energy ≤95 · awake at 0 energy = exhausted (locked, must sleep) |
@@ -97,6 +160,11 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 - **Can I run two instances?** No — a PID lock refuses the second one to protect the save.
 - **Pane too narrow?** Layout adapts automatically; force a width with `PET_WIDTH=60 pet`.
 - **Does it phone home?** Never. No network, no telemetry.
+- **English UI?** Not yet — in-game text is Chinese for now; it's on the roadmap and help is welcome.
+
+## Contribute
+
+The whole game is one readable file, and most contributions are shockingly small: a new species is a string array, a new achievement is one line, a new chat line is just… a string. See [CONTRIBUTING.md](CONTRIBUTING.md) — ideas welcome (especially species art and i18n help).
 
 ## License
 
