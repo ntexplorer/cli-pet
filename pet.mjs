@@ -26,7 +26,7 @@ const dim = ESC + '2m', bold = ESC + '1m'
 // ---------- 配置 ----------
 const SPECIES = {
   slime: { label: '果冻史莱姆', baseWeight: 1.2, color: [124, 252, 0] },
-  cat:   { label: '像素小猫',   baseWeight: 1.8, color: [255, 165, 0] },
+  hamster:{ label: '像素小仓鼠', baseWeight: 0.8, color: [210, 160, 90] },
   dragon:{ label: '小火龙',     baseWeight: 2.5, color: [255, 80, 60] },
 }
 // 每小时衰减 — 按 8h 工作日挂机调校: 每 35-45 分钟有一件事可做
@@ -47,13 +47,13 @@ const ACTIONS = {
   touch: { key: 't', label: '摸摸', },
 }
 const ACHIEVEMENTS = [
-  { id: 'feed50',  icon: '🍚', name: '干饭王',   desc: '喂食 50 次',   check: s => s.stats.feed >= 50 },
-  { id: 'water50', icon: '💧', name: '饮水机',   desc: '喂水 50 次',   check: s => s.stats.water >= 50 },
-  { id: 'bath20',  icon: '🛁', name: '泡泡浴',   desc: '洗澡 20 次',   check: s => s.stats.bath >= 20 },
-  { id: 'play30',  icon: '🎾', name: '玩伴',     desc: '玩耍 30 次',   check: s => s.stats.play >= 30 },
-  { id: 'live3d',  icon: '🌱', name: '三日之约', desc: '存活 3 天',    check: s => livedDays(s) >= 3 },
-  { id: 'live7d',  icon: '🌈', name: '一周你好', desc: '存活 7 天',    check: s => livedDays(s) >= 7 },
-  { id: 'gen2',    icon: '👶', name: '生生不息', desc: '养到第 2 代',  check: s => s.generation >= 2 },
+  { id: 'feed50',  icon: '🍚', name: '干饭王',   desc: '喂食 50 次',   check: s => s.stats.feed >= 50,  prog: s => `${s.stats.feed}/50` },
+  { id: 'water50', icon: '💧', name: '饮水机',   desc: '喂水 50 次',   check: s => s.stats.water >= 50, prog: s => `${s.stats.water}/50` },
+  { id: 'bath20',  icon: '🛁', name: '泡泡浴',   desc: '洗澡 20 次',   check: s => s.stats.bath >= 20,  prog: s => `${s.stats.bath}/20` },
+  { id: 'play30',  icon: '🎾', name: '玩伴',     desc: '玩耍 30 次',   check: s => s.stats.play >= 30,  prog: s => `${s.stats.play}/30` },
+  { id: 'live3d',  icon: '🌱', name: '三日之约', desc: '存活 3 天',    check: s => livedDays(s) >= 3,   prog: s => `${livedDays(s).toFixed(1)}/3 天` },
+  { id: 'live7d',  icon: '🌈', name: '一周你好', desc: '存活 7 天',    check: s => livedDays(s) >= 7,   prog: s => `${livedDays(s).toFixed(1)}/7 天` },
+  { id: 'gen2',    icon: '👶', name: '生生不息', desc: '养到第 2 代',  check: s => s.generation >= 2,   prog: s => `第${s.generation}代` },
 ]
 function livedDays(s) { return (Date.now() - s.bornAt) / 86400000 }
 
@@ -61,7 +61,7 @@ function livedDays(s) { return (Date.now() - s.bornAt) / 86400000 }
 // 字符网格: . 透明, 其余查 PALETTE
 const PAL = {
   G: [124, 252, 0], g: [60, 170, 20],          // 史莱姆绿/深绿
-  O: [255, 165, 0], o: [210, 120, 20],         // 猫橙/深橙
+  H: [210, 160, 90], h: [160, 110, 50],          // 仓鼠金棕/深棕
   R: [255, 80, 60], r: [190, 40, 30],          // 龙红/深红
   W: [245, 245, 245], B: [30, 30, 30], M: [90, 40, 40], // 眼白/瞳/嘴
   F: [255, 215, 0], f: [255, 140, 0],          // 火焰黄/橙
@@ -76,7 +76,7 @@ const PAL = {
 const ART = {
   egg: {
     slime: [['...PPPP...','..PPGPPP..','.PPGPPPPG.','.PPPPPGPP.','.PGPPPPPP.','.PPPPGPPP.','..PPPPPP..','...PPPP...']],
-    cat:   [['....EE....','...EEEE...','..EOEEEO..','.EEEOEEEE.','.EOEEEEOE.','.EEEEEEEO.','..OEEEEE..','...EEEE...']],
+    hamster:[['...HHHH...','..HHWWHH..','.HHWHHHWH.','.HHHHWWHH.','.HWHHHHHh.','.HHHHWHHH.','..HHHHHH..','...HHHH...']],
     dragon:[['....rr....','..RRRRRR..','.RrRRRRrR.','.RRrRRRRR.','.RRRRrRRr.','.RrRRRRrR.','..RRRRRR..','...RRRR...']],
   },
   // 每物种 { baby: [帧], adult: [帧] }, 帧 = 行字符串数组
@@ -90,14 +90,14 @@ const ART = {
       ['............', '..GGgGGgGG..', '.GGgGGGGgGG.', 'GGGWWGGWWGGG', 'GGGWBGGBWGGG', 'GGGGGMMGGGGG', 'GGGGGGGGGGGG', 'GGgGGGGGGgGG', 'GGGGGGGGGGGG', '.gggggggggg.'],
     ],
   },
-  cat: {
+  hamster: {
     baby: [
-      ['.O......O..', '.OO....OO..', '..OOOOOOO..', '..OWBOOWBO.', '..OOOOOOO..', '...OOOOO...', '.O..O..O...', '.OOOOOOOO..', 'O..OOOOO..o', '.o..OOO....'],
-      ['.O......O..', '.OO....OO..', '..OOOOOOO..', '..OWBOOWBO.', '..OOOOOOO..', '...OOOOO...', '.O..O..O...', '.OOOOOOOO..', '.O..OOOOO.o', '..o..OOO...'],
+      ['.HH......HH.','.HHHHHHHHHH.','HHHHHHHHHHHH','HHWWHHHHWWHH','HHHHHPPHHHHH','HHHHHHHHHHHH','.HHHHHHHHHH.','.WWWWWWWWWW.','..WW....WW..'],
+      ['............','.HH......HH.','.HHHHHHHHHH.','hHWWHHHHWWhH','HHHHHPPHHHHH','HHHHHHHHHHHH','.HHHHHHHHHH.','.WWWWWWWWWW.','..WW....WW..'],
     ],
     adult: [
-      ['.OO......OO.', '.OO.O..O.OO.', '..OOOOOOOO..', '..OWB..BWO..', '..OOOmmOOO..', '.O.OOOOOO.O.', '.O..O..O..O.', '.OOOOOOOOOO.', 'OO..OOOOOO.o', 'O..o.OOOO...o', '....OOOO....'],
-      ['.OO......OO.', '.OO.O..O.OO.', '..OOOOOOOO..', '..OWB..BWO..', '..OOOmmOOO..', '.O.OOOOOO.O.', '.O..O..O..O.', '.OOOOOOOOOO.', '.OO..OOOOO.o', '..O..OOOO..o.', '.....OOOO....'],
+      ['.HHH......HHH.','.HHHHHHHHHHHH.','HHHHHHHHHHHHHH','HHhHHHHHHHHhHH','HHWWHHHHHHWWHH','HHHHHPPHHHHHHH','HHhHHHHHHHHhHH','.HHhHHHHHHhHH.','.HHHHHHHHHHHHh','..WWWWWWWWWW.h','..WWW....WWW..'],
+      ['..............','.HHH......HHH.','.HHHHHHHHHHHH.','HHhHHHHHHHHhHH','HHWWHHHHHHWWHH','HHHHHPPHHHHHHH','HHhHHHHHHHHhHH','.HHhHHHHHHhHH.','.HHHHHHHHHHHH.','.HHHHHHHHHHHh.','..WWWWWWWWWW..'],
     ],
   },
   dragon: {
@@ -136,7 +136,7 @@ function moodOverlay(art) {
   if (S.hunger < 30) { for (const row of g) for (let c = 0; c < row.length; c++) if (row[c] === 'M') row[c] = 'm' }
   return g.map(r => r.join(''))
 }
-function hatchProgress() { return Math.max(0, Math.min(1, (Date.now() - S.bornAt) / (HATCH_MIN * 60000))) }
+function hatchProgress() { return Math.max(0, Math.min(1, (Date.now() - S.bornAt) / HATCH_MS)) }
 
 // ---------- 状态 ----------
 function defaultState() {
@@ -154,7 +154,7 @@ function defaultState() {
     achievements: [],
     memorial: [],              // [{name,species,days,cause,generation}]
     log: [],                   // 最近事件 [{t,text}]
-    lastPetCd: 0, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, // bubble {text, until}
+    lastAct: {}, named: false, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, // bubble {text, until}
   }
 }
 let S = defaultState()
@@ -179,6 +179,16 @@ function bell(n = 1) { for (let i = 0; i < n; i++) process.stdout.write(ansi.bel
 
 // ---------- 时间引擎 ----------
 const H = 3600000
+// --fast[=N] 测试档: 游戏时间流速 ×N (默认 60) — 衰减/孵化/弥留/守灵/生病/冷却统一加速, 头部显示 ⏩ 角标
+const _fa = process.argv.find(a => a === '--fast' || a.startsWith('--fast='))
+const SCALE = _fa ? Math.max(1, parseInt(_fa.split('=')[1]) || 60) : 1
+const HATCH_MS = HATCH_MIN * 60000 / SCALE
+const GRACE_MS = DYING_GRACE_H * H / SCALE
+const MOURN_MS = MOURN_H * H / SCALE
+const SICK_MS = SICK_AFTER_DIRTY_H * H / SCALE
+// 动作冷却(毫秒, 测试档同步加速); 配合阈值拒绝防狂点 — 数值健康时动作同样会被拒绝
+const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3 }
+for (const _k in CD) CD[_k] /= SCALE
 function dec(v, rate, h) { return Math.max(0, v - rate * h) }
 function applyDecay(h) {
   if (S.stage !== 'alive' && S.stage !== 'dying') return
@@ -194,8 +204,8 @@ function applyDecay(h) {
   if (S.thirst < 30) extra += 4
   if (S.clean < 30) extra += 3
   if (extra) S.mood = dec(S.mood, extra, h)
-  // 睡觉回精力(自然也小幅回)
-  S.energy = Math.min(100, S.energy + (sleeping ? 12 : 2) * h)
+  // 睡觉回精力(小睡 2h 满; 醒着自然恢复 4/h)
+  S.energy = Math.min(100, S.energy + (sleeping ? 40 : 4) * h)
 }
 function moodCap() {
   const base = S.weight > fatLine() ? 75 : 100
@@ -204,14 +214,14 @@ function moodCap() {
 function fatLine() { return SPECIES[S.species]?.baseWeight * 1.5 || 3 }
 function thinLine() { return SPECIES[S.species]?.baseWeight * 0.6 || 1 }
 // 挂在 state 上的便捷方法用函数替代
-function isSick() { return !!S.dirtySince && Date.now() - S.dirtySince > SICK_AFTER_DIRTY_H * H && S.clean < 15 }
+function isSick() { return !!S.dirtySince && Date.now() - S.dirtySince > SICK_MS && S.clean < 15 }
 
 // 离线补算: 挂机玩具语义 — 离线不致死, 数值托底; 只有开着 pane 时才会饿死
 function catchUp() {
   if (S.stage === 'eggSelect' || !S.lastSeen) return
   const dt = Math.max(0, Date.now() - S.lastSeen)
   if (dt < 60000) return
-  const decayH = Math.min(dt / H, OFFLINE_DECAY_CAP_H)
+  const decayH = Math.min((dt / H) * SCALE, OFFLINE_DECAY_CAP_H)
   const stage0 = S.stage
   applyDecay(decayH)
   // 离线托底: 五维/体重不因离线归零 (运行中的衰减照常致命); 弥留中则整体冻结(数值保持, 计时平移)
@@ -224,7 +234,7 @@ function catchUp() {
   if (S.dirtySince) S.dirtySince += dt
   // 蛋孵化推进
   if (S.stage === 'egg') {
-    const need = HATCH_MIN * 60000
+    const need = HATCH_MS
     if (Date.now() - S.bornAt >= need) hatch()
   }
   // 弥留判定
@@ -236,18 +246,18 @@ function recheckStage(dt = 0) {
   if (S.stage === 'alive') {
     if (S.hunger <= 0 && S.thirst <= 0) {
       S.stage = 'dying'; S.dyingSince = Date.now()
-      log(`${S.name} 饿晕过去了…（弥留 ${DYING_GRACE_H} 小时内喂食+喂水可救）`)
+      log(`${S.name} 饿晕过去了…（弥留 ${fmtDur(GRACE_MS)} 内喂食+喂水可救）`)
       bubble('（晕乎乎…好饿…好渴…）', 15); bell(3)
     }
   } else if (S.stage === 'dying') {
-    const deadline = S.dyingSince + DYING_GRACE_H * H
+    const deadline = S.dyingSince + GRACE_MS
     if (S.hunger > 10 && S.thirst > 10) {
       S.stage = 'alive'; S.dyingSince = 0
       log(`${S.name} 被从鬼门关拉了回来！`); bubble('呼…差点睡着就醒不来了…', 10)
     } else if (Date.now() >= deadline) {
       die('饥饿与干渴')
     }
-  } else if (S.stage === 'dead' && Date.now() - S.diedAt >= MOURN_H * H) {
+  } else if (S.stage === 'dead' && Date.now() - S.diedAt >= MOURN_MS) {
     // 守灵结束 → 待重新孵蛋(由用户按键触发, 这里只解锁)
   }
 }
@@ -269,48 +279,66 @@ function grownStage() { return S.careScore >= GROW_CARE ? 'adult' : 'baby' }
 function clamp(v, a = 0, b = 100) { return Math.max(a, Math.min(b, v)) }
 function act(kind) {
   if (S.stage === 'eggSelect') return
-  if (S.stage === 'dead') { if (kind === 'feed' && Date.now() - S.diedAt >= MOURN_H * H) newEgg(); return }
+  if (S.stage === 'dead') { if (kind === 'feed' && Date.now() - S.diedAt >= MOURN_MS) newEgg(); return }
   if (S.stage === 'egg') { bubble('蛋在轻轻摇晃…还要一会儿'); return }
+  // 睡着时除睡觉键外一律拒绝(防刷: 40/h 快速回精力的代价)
+  if (!S.awake && kind !== 'sleepToggle') {
+    if (kind === 'touch') bubble('（睡梦中翻了个身）')
+    else bubble('睡得正香，别吵…')
+    return
+  }
+  const cdLeft = k => CD[k] ? Math.ceil((CD[k] - (Date.now() - (S.lastAct[k] || 0))) / 1000) : 0
   const sick = isSick()
   switch (kind) {
     case 'feed': {
+      if (cdLeft('feed') > 0) { bubble(`还想吃？消化一下（${cdLeft('feed')}s）`); break }
+      if (S.hunger > 65) { bubble('还不饿~'); break }
       const gain = sick ? 16 : 32
-      if (S.hunger > 95) { bubble('吃不下啦！'); break }
       S.hunger = clamp(S.hunger + gain); S.weight += 0.15; S.stats.feed++
-      S.careScore++; bubble(sick ? '没什么胃口…还是吃了' : '嗷呜嗷呜，好吃！'); break
+      S.careScore++; S.lastAct.feed = Date.now()
+      bubble(sick ? '没什么胃口…还是吃了' : '嗷呜嗷呜，好吃！'); break
     }
     case 'snack': {
-      if (S.hunger > 95) { bubble('肚子圆滚滚…'); break }
+      if (cdLeft('snack') > 0) { bubble(`零食刚吃过（${cdLeft('snack')}s）`); break }
+      if (S.hunger > 65) { bubble('肚子不饿，不吃零食~'); break }
       S.hunger = clamp(S.hunger + 8); S.mood = clamp(S.mood + (sick ? 6 : 12)); S.weight += 0.25; S.stats.snack++
-      S.careScore++; bubble('零食！开心转圈！'); break
+      S.careScore++; S.lastAct.snack = Date.now()
+      bubble('零食！开心转圈！'); break
     }
     case 'water': {
+      if (cdLeft('water') > 0) { bubble(`喝太快会呛到（${cdLeft('water')}s）`); break }
+      if (S.thirst > 65) { bubble('现在不渴~'); break }
       S.thirst = clamp(S.thirst + 35); S.stats.water++; S.careScore++
-      bubble('咕咚咕咚~'); break
+      S.lastAct.water = Date.now(); bubble('咕咚咕咚~'); break
     }
     case 'bath': {
+      if (cdLeft('bath') > 0) { bubble(`刚洗过澡，毛还没干（${cdLeft('bath')}s）`); break }
+      if (S.clean > 60) { bubble('身上还挺干净的~'); break }
       S.clean = clamp(S.clean + 45)
       if (isSick()) { log(`${S.name} 洗掉了一身病气，痊愈了！`); bubble('洗完澡，病好啦！') }
       else bubble('泡泡好舒服~')
-      S.dirtySince = 0; S.stats.bath++; S.careScore++; break
+      S.dirtySince = 0; S.stats.bath++; S.careScore++; S.lastAct.bath = Date.now(); break
     }
     case 'play': {
+      if (cdLeft('play') > 0) { bubble(`玩累了歇会儿（${cdLeft('play')}s）`); break }
       if (S.energy < 15) { bubble('太累了…想睡觉…'); break }
+      if (S.mood > 90) { bubble('心情正好，不用哄~'); break }
       S.mood = clamp(S.mood + 28); S.energy = clamp(S.energy - 15)
       S.hunger = clamp(S.hunger - 4); S.thirst = clamp(S.thirst - 6)
-      S.stats.play++; S.careScore += 2; bubble('耶！再玩一次！'); break
+      S.stats.play++; S.careScore += 2; S.lastAct.play = Date.now(); bubble('耶！再玩一次！'); break
     }
     case 'sleepToggle': {
       S.awake = !S.awake
       bubble(S.awake ? '睡醒啦！' : 'Zzz…'); break
     }
     case 'touch': {
-      if (Date.now() - S.lastPetCd < 60000) { bubble('（被摸得毛都乱了…）'); break }
-      S.lastPetCd = Date.now(); S.mood = clamp(S.mood + 10); S.stats.touch++
+      if (cdLeft('touch') > 0) { bubble('（被摸得毛都乱了…）'); break }
+      S.lastAct.touch = Date.now(); S.mood = clamp(S.mood + 10); S.stats.touch++
       S.careScore++; bubble('呼噜呼噜…最喜欢你了'); break
     }
   }
   S.mood = Math.min(S.mood, moodCap())
+  setFx(kind) // 动作特效(FX_DEF 无定义的动作自动跳过)
   checkAchievements(); recheckStage(); save()
 }
 function newEgg() {
@@ -335,7 +363,7 @@ function checkAchievements() {
 const THEATER = {
   common: ['（盯着你看了一会儿）', '（突然原地转了个圈）', '（哼起了不成调的小曲）', '（望着远处发呆）', '（打了个大大的哈欠）'],
   slime:  ['（Q弹Q弹地弹了两下）', '（把自己捏成了一个小方块又弹回来）', '（身上闪过一道彩虹光）'],
-  cat:    ['（追了一阵自己的尾巴）', '（踩着小碎步巡逻领地）', '（突然炸毛又若无其事）'],
+  hamster:['（把颊囊塞得满满的）', '（在木屑里刨了个洞）', '（偷偷藏起一颗粮）'],
   dragon: ['（鼻孔冒出两撮小火星）', '（对着影子练习喷火）', '（翅膀扑腾着原地起飞失败）'],
 }
 function maybeTheater() {
@@ -366,11 +394,13 @@ function maybeBeg() { // 数值越低越优先(口渴>饱腹>心情>洁净), 10 
 
 // ---------- 渲染 ----------
 let frame = 0
+let PAGE = 'main' // main | stats (Tab 切换)
+let FX = null     // 动作特效 {kind, start:frame}
 let TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.columns) || 78, 120))
 if (process.stdout.on) process.stdout.on('resize', () => {
   TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.columns) || TERM_W, 120))
 })
-function at(row, col, text) { if (col > TERM_W - 1) return; process.stdout.write(`${ESC}${row};${col}H${text}`) } // 越界保护: 防换行炸屏
+function at(row, col, text) { if (col > TERM_W - 1 || row > 24 || row < 1) return; process.stdout.write(`${ESC}${row};${col}H${text}`) } // 越界保护: 防换行炸屏
 function renderStars() {
   const h = new Date().getHours()
   if (h >= 20 || h < 5) {
@@ -408,39 +438,72 @@ function bar(label, v, color, extra = '') {
   return `${label} ${bg(...color)}${' '.repeat(filled)}${R}${dim}${'·'.repeat(w - filled)}${R} ${String(Math.round(v)).padStart(3)}${extra}`
 }
 const hotButtons = [] // {row, c0, c1, kind}
-const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3' }
+const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t' }
 function buttonBar(row) {
-  hotButtons.length = 0
-  const defs = [
+  let defs = [
     ['f', '喂食', 'feed'], ['1', '零食', 'snack'], ['w', '喂水', 'water'], ['b', '洗澡', 'bath'],
     ['p', '玩耍', 'play'], ['s', '睡觉', 'sleepToggle'], ['t', '摸摸', 'touch'], ['n', '起名', 'rename'],
     ['r', '重置', 'reset'], ['q', '退出', 'quit'],
   ]
+  if (S.named) defs = defs.filter(d => d[2] !== 'rename') // 起名一次性, 定名后收起
   const gap = 1
-  const totalW = defs.reduce((w, [k, label]) => w + `[${k} ${label}]`.length + gap, 0)
+  const totalW = defs.reduce((w, [k, label]) => w + `[${k} ${label}]`.length + 3 + gap, 0) // +3 冷却后缀余量
   const perRow = 3 + totalW > TERM_W ? 5 : defs.length // 窄屏折两行(前5后5)
   let col = 3, r = row
   defs.forEach(([k, label, kind], i) => {
     if (i === perRow) { col = 3; r = row + 1 }
-    const text = `[${k} ${label}]`
-    const hot = bg(60, 70, 100) + fg(230, 230, 240) + bold
-    at(r, col, hot + text + R)
+    let text = `[${k} ${label}]`
+    let style = bg(60, 70, 100) + fg(230, 230, 240) + bold
+    if (CD[kind]) { // 冷却中: 置灰+倒计时
+      const left = Math.ceil((CD[kind] - (Date.now() - (S.lastAct[kind] || 0))) / 1000)
+      if (left > 0) { text = `[${k} ${label}·${left}s]`; style = dim + fg(110, 110, 120) }
+    }
+    at(r, col, style + text + R)
     hotButtons.push({ row: r, c0: col, c1: col + text.length - 1, kind })
     col += text.length + gap
   })
 }
+// 动作特效(FX): 每动作 2s 粒子动画, frame 驱动, 与气泡并存
+const FX_DEF = {
+  feed:  { color: [255, 190, 80],  chars: ['●', '●', '◍'], from: -3, dir: 1 },   // 食物色块落下
+  snack: { color: [255, 230, 120], chars: ['✦', '✧', '✦'], from: -4, dir: 1 },   // 星星闪烁下落
+  water: { color: [110, 190, 255], chars: ['❍', '◦', '❍'], from: -3, dir: 1 },   // 水滴落下
+  bath:  { color: [220, 240, 255], chars: ['○', '°', '◦'], from: 1, dir: -1 },   // 泡泡上升
+  play:  { color: [180, 140, 255], chars: ['!', '♦', '↑'], from: -2, dir: 1 },   // 跳动符号
+  touch: { color: [255, 150, 170], chars: ['♥', '♡', '♥'], from: -4, dir: 1 },   // 爱心冒出
+}
+function setFx(kind) { if (FX_DEF[kind]) FX = { kind, start: frame } }
+function renderFx(artTop, artLeft, artW) {
+  if (!FX) return
+  const f = frame - FX.start
+  if (f > 4) { FX = null; return } // 2fps × 4+ 帧 ≈ 2s
+  const d = FX_DEF[FX.kind]
+  const ch = d.chars[f % d.chars.length]
+  const drop = Math.min(f, 2) // 逐帧位移, 2 格封顶
+  const cols = [artLeft + 2, artLeft + (artW >> 1), artLeft + Math.max(2, artW - 3)] // 三粒: 左中右
+  cols.forEach((c, i) => {
+    let row = artTop + d.from + (d.dir > 0 ? drop : -drop) // 落下↓ / 上升↑
+    if (i === 1 && f % 2) return // 中粒闪烁
+    at(Math.max(1, Math.min(23, row)), c, fg(...d.color) + ch + R)
+  })
+}
+
 function render() {
   process.stdout.write(ansi.clear + ansi.home)
   renderStars()
+  hotButtons.length = 0 // 统一在入口清空热区, buttonBar/各子渲染只注册
 
   if (S.stage === 'eggSelect') { renderEggSelect(); return }
   if (S.stage === 'dead') { renderGrave(); return }
+  if (PAGE === 'stats') { renderStats(); return }
 
   // 头部
   const stageZh = { egg: '蛋·孵化中', alive: grownStage() === 'adult' ? '成年期' : '幼年期', dying: '!! 弥留 !!' }[S.stage]
   at(1, 2, bold + fg(255, 255, 255) + `${S.name || '?'}${R}${dim}  ${SPECIES[S.species]?.label || ''} · ${stageZh} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天${R}`)
   const h = new Date().getHours()
-  at(1, TERM_W - 14, dim + ({ night: '夜 · 静悄悄', dawn: '晨 · 微光', day: '昼 · 明亮', dusk: '暮 · 橙红' }[h >= 23 || h < 5 ? 'night' : h < 8 ? 'dawn' : h < 17 ? 'day' : 'dusk']) + R)
+  const dayTxt = ({ night: '夜 · 静悄悄', dawn: '晨 · 微光', day: '昼 · 明亮', dusk: '暮 · 橙红' }[h >= 23 || h < 5 ? 'night' : h < 8 ? 'dawn' : h < 17 ? 'day' : 'dusk'])
+  const tag = SCALE > 1 ? fg(255, 220, 90) + `⏩x${SCALE} ` + R + dim : ''
+  at(1, TERM_W - 14 - (SCALE > 1 ? 7 : 0), tag + dayTxt + R)
 
   // 宠物
   const artSet = ART[S.species]
@@ -470,12 +533,13 @@ function render() {
     const text = S.bubble.text
     at(artTop - 1, Math.min(TERM_W - text.length - 4, artLeft + art[0].length + 2), fg(255, 255, 255) + `「${text}」` + R)
   } else S.bubble = null
+  renderFx(artTop, artLeft, art[0].length)
 
   // 数值区(蛋期只显示孵化进度, 无五维/体重)
   const rowB = 17
   if (S.stage === 'egg') {
     const prog = hatchProgress()
-    at(rowB, 3, bar('孵化', prog * 100, [170, 220, 140]) + dim + `  还需 ${fmtDur(HATCH_MIN * 60000 - (Date.now() - S.bornAt))}` + R)
+    at(rowB, 3, bar('孵化', prog * 100, [170, 220, 140]) + dim + `  还需 ${fmtDur(HATCH_MS - (Date.now() - S.bornAt))}` + R)
   } else {
     const wt = S.weight.toFixed(1) + 'kg'
     const wtState = S.weight > fatLine() ? fg(255, 150, 90) + '超重' + R : S.weight < thinLine() ? fg(120, 180, 255) + '偏瘦' + R : '标准'
@@ -484,21 +548,18 @@ function render() {
     at(rowB + 2, 3, bar('精力', S.energy, [180, 180, 120]) + `   体重 ${bold}${wt}${R} ${wtState}`)
   }
 
-  // 成就 & 纪念墙
-  const got = ACHIEVEMENTS.filter(a => S.achievements.includes(a.id))
-  at(rowB + 4, 3, dim + '成就 ' + R + (got.map(a => a.icon).join(' ') || '—') + dim + ` (${got.length}/${ACHIEVEMENTS.length})` + R)
-  const mem = S.memorial.slice(-2).map(m => `${m.name}·${m.days}天`).join(' | ')
-  at(rowB + 4, 40, dim + (mem ? '纪念 ' + R + mem.slice(0, TERM_W - 42) : '') + R)
-
-  // 事件日志(最近3条) — 窄屏隐藏
-  const logs = S.log.slice(-3)
-  if (TERM_W >= 70) logs.forEach((e, i) => at(19 + i, 44, dim + e.text.slice(0, TERM_W - 46) + R))
+  // 成就/纪念收纳为角标(点击或 Tab 进数据面板) + 最新一条日志独占行(不再与数值区接壤)
+  const gotN = ACHIEVEMENTS.filter(a => S.achievements.includes(a.id)).length
+  at(rowB + 4, 3, dim + `🏆 ${gotN}/${ACHIEVEMENTS.length}   🕊 ${S.memorial.length}` + R)
+  const lastLog = S.log[S.log.length - 1]
+  if (lastLog) at(rowB + 5, 3, dim + lastLog.text.slice(0, TERM_W - 5) + R)
 
   buttonBar(23)
+  hotButtons.push({ row: rowB + 4, c0: 3, c1: 12, kind: 'toggleStats' }) // 角标热区
 }
 function renderEggSelect() {
   at(2, 28, bold + fg(255, 255, 255) + '领养一只宠物吧（键盘 1/2/3 或点击）' + R)
-  const opts = [['slime', '果冻史莱姆', 'Q弹 变色 小巧'], ['cat', '像素小猫', '软毛 撒娇 巡逻'], ['dragon', '小火龙', '喷火 成长 帅气']]
+  const opts = [['slime', '果冻史莱姆', 'Q弹 变色 小巧'], ['hamster', '像素小仓鼠', '颊囊 圆滚 藏粮'], ['dragon', '小火龙', '喷火 成长 帅气']]
   opts.forEach(([sp, name, desc], i) => {
     const left = 8 + i * 22
     at(5, left, bold + `${i + 1}. ${name}` + R)
@@ -506,20 +567,46 @@ function renderEggSelect() {
     drawArt(egg, 7, left + 5)
     at(14, left, dim + desc + R)
   })
-  hotButtons.length = 0
   opts.forEach(([, ,], i) => {
     const left = 8 + i * 22
     for (let r = 5; r <= 13; r++) hotButtons.push({ row: r, c0: left, c1: left + 16, kind: 'pickEgg' + (i + 1) })
   })
 }
 function renderGrave() {
-  const mournLeft = Math.max(0, MOURN_H * H - (Date.now() - S.diedAt))
+  const mournLeft = Math.max(0, MOURN_MS - (Date.now() - S.diedAt))
   drawArt(GRAVE, 5, Math.floor((TERM_W - 9) / 2))
   at(13, 24, bold + fg(200, 200, 210) + `${S.name} 在这里长眠` + R)
   at(14, 26, dim + `死因: ${S.deathCause} · 共存活 ${livedDays(S).toFixed(1)} 天` + R)
   if (mournLeft > 0) at(16, 24, fg(150, 150, 160) + `守灵中… ${fmtDur(mournLeft)} 后可重新孵蛋（按 f）` + R)
   else at(16, 22, fg(255, 200, 120) + '按 f 或点击 [f 喂食] 迎接下一代' + R)
   buttonBar(23)
+}
+// 数据面板(Tab): 生涯统计 + 成就进度 + 纪念墙 + 全量日志
+function renderStats() {
+  const spec = SPECIES[S.species]
+  at(1, 2, bold + fg(255, 255, 255) + '📋 数据面板' + R + dim + `  ${S.name} · ${spec?.label || ''} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天 · ${S.weight.toFixed(1)}kg${SCALE > 1 ? ' · ⏩x' + SCALE : ''}` + R)
+  const back = '[Tab 返回主界面]'
+  at(1, TERM_W - back.length - 2, bg(60, 70, 100) + fg(230, 230, 240) + back + R)
+  hotButtons.push({ row: 1, c0: TERM_W - back.length - 1, c1: TERM_W - 3, kind: 'toggleStats' })
+  // 生涯动作
+  at(3, 3, dim + '— 生涯动作 —' + R)
+  const acts = [['feed', '喂食'], ['snack', '零食'], ['water', '喂水'], ['bath', '洗澡'], ['play', '玩耍'], ['touch', '摸摸']]
+  acts.forEach(([k, label], i) => at(4 + Math.floor(i / 3), 3 + (i % 3) * 26, `${label} ${bold}${S.stats[k] || 0}${R}`))
+  // 成就(含进度)
+  at(7, 3, dim + `— 成就 ${S.achievements.length}/${ACHIEVEMENTS.length} —` + R)
+  ACHIEVEMENTS.forEach((a, i) => {
+    const got = S.achievements.includes(a.id)
+    const txt = `${a.icon} ${a.name}  ${a.desc}${got ? '' : a.prog ? `  ${a.prog(S)}` : ''}`
+    at(8 + i, 3, (got ? fg(255, 220, 120) : dim) + txt + R)
+  })
+  // 纪念墙
+  let r = 8 + ACHIEVEMENTS.length + 1
+  at(r, 3, dim + `— 纪念墙 ${S.memorial.length} —` + R)
+  S.memorial.slice(-3).reverse().forEach((m, i) => at(r + 1 + i, 3, `${m.name} · ${SPECIES[m.species]?.label || m.species} · 存活${m.days}天 · ${m.cause}`))
+  // 日志(最新在上, 截到 22 行)
+  let r2 = r + 1 + Math.min(3, S.memorial.length) + 1
+  at(r2, 3, dim + '— 日志 —' + R)
+  S.log.slice().reverse().forEach((e, i) => { if (r2 + 1 + i <= 22) at(r2 + 1 + i, 3, dim + e.text.slice(0, TERM_W - 6) + R) })
 }
 function fmtDur(ms) {
   const m = Math.round(ms / 60000)
@@ -556,9 +643,13 @@ function setupInput(onAction, onQuit, onRename) {
       return
     }
     if (k.length === 1 && k >= '1' && k <= '3' && S.stage === 'eggSelect') { pickEgg(+k); return }
+    if (k === '\t') { // 数据面板切换(选蛋/墓碑界面不适用)
+      if (S.stage !== 'eggSelect' && S.stage !== 'dead') { PAGE = PAGE === 'main' ? 'stats' : 'main'; render() }
+      return
+    }
     if (S.stage === 'eggSelect') { if (k === 'q') onQuit(); return }
     if (k === 'q') { onQuit() }
-    else if (k === 'n') onRename()
+    else if (k === 'n') { if (S.named) bubble('名字定下来了，不换啦'); else onRename() }
     else if (k === 'r') {
       if (S.stage === 'dead' || S.stage === 'eggSelect') return // 这两个界面无需重置
       S.askReset = true
@@ -575,6 +666,7 @@ function setupInput(onAction, onQuit, onRename) {
 }
 function hitTest(row, col) {
   for (const b of hotButtons) if (row === b.row && col >= b.c0 && col <= b.c1) return b.kind
+  if (PAGE === 'stats') return null // 数据面板只有返回按钮可点
   // 点宠物 = 摸摸
   if ((S.stage === 'alive' || S.stage === 'dying' || S.stage === 'egg') && row >= 4 && row <= 14 && col >= 10 && col <= 68) return 'touch'
   if (S.stage === 'dead') {
@@ -584,7 +676,7 @@ function hitTest(row, col) {
   return null
 }
 function pickEgg(n) {
-  const map = { 1: 'slime', 2: 'cat', 3: 'dragon' }
+  const map = { 1: 'slime', 2: 'hamster', 3: 'dragon' }
   const sp = map[n]
   if (!sp) return
   S.species = sp; S.stage = 'egg'; S.bornAt = Date.now(); S.name = SPECIES[sp].label
@@ -617,7 +709,7 @@ function renameFlow() {
     for (const ch of d.toString('utf8')) {
       if (ch === '\r' || ch === '\n') {
         process.stdin.removeListener('data', onData)
-        if (input.trim()) { S.name = input.trim().slice(0, 8); log(`改名为 ${S.name}`) }
+        if (input.trim()) { S.name = input.trim().slice(0, 8); S.named = true; log(`定名为 ${S.name}`) }
         S.renaming = false; save(); render()
         return
       } else if (ch === '\x1b') {
@@ -662,13 +754,13 @@ setInterval(() => { if (S.renaming || S.askReset) return; frame++; render() }, 5
 setInterval(() => {
   if (S.renaming) return
   if (S.stage === 'alive' || S.stage === 'dying') {
-    applyDecay(1 / 3600)
+    applyDecay(SCALE / 3600)
     if (S.clean < 15) { if (!S.dirtySince) S.dirtySince = Date.now() }
     else S.dirtySince = 0
       recheckStage(0); if (!maybeBeg()) maybeTheater(); checkAchievements()
   } else if (S.stage === 'egg') {
-    if (Date.now() - S.bornAt >= HATCH_MIN * 60000) hatch()
-    else if (Date.now() - (S.lastEggWiggle || 0) > 40000) {
+    if (Date.now() - S.bornAt >= HATCH_MS) hatch()
+    else if (Date.now() - (S.lastEggWiggle || 0) > 40000 / SCALE) {
       S.lastEggWiggle = Date.now()
       bubble(EGG_WIGGLES[(Math.random() * EGG_WIGGLES.length) | 0], 5); save()
     }

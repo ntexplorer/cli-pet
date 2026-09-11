@@ -17,7 +17,7 @@ A pixel-art virtual pet that lives in your terminal. Single-file, zero-dependenc
 
 ## Features
 
-- **Three species** — slime / cat / dragon, each with distinct egg sprites, baby & adult pixel art (adult form unlocked through care)
+- **Three species** — slime / hamster / dragon, each with distinct egg sprites, baby & adult pixel art (adult form unlocked through care)
 - **Five stats** — hunger, thirst, cleanliness, mood, energy; they decay in real time, tuned for an 8-hour workday: something to do every 35–45 minutes
 - **Full life arc** — egg (3 min hatch, with cracks & wiggles) → life → dying (12 h rescuable window) → grave → mourning → next generation, with a memorial wall and generation counter
 - **Offline-friendly** — no background process; time passes via catch-up math on next launch, but your pet **never dies while you're away** (stats have an offline floor; dying clock freezes)
@@ -26,8 +26,12 @@ A pixel-art virtual pet that lives in your terminal. Single-file, zero-dependenc
 - **Keyboard + mouse** — single-key actions and SGR-1006 mouse clicks (buttons, click-the-pet-to-pet)
 - **Adaptive layout** — auto-fits narrow panes (two-row buttons, hidden log column); `PET_WIDTH` env override
 - **Weight system** — overfeed and it visibly gets wider (and mood-capped); 2 food types (meal vs snack)
+- **Action feedback** — every action plays a 2 s particle animation (falling food, water drops, rising bubbles, hearts…)
+- **Anti-spam actions** — pets refuse what they don't need (won't eat if not hungry) and each action has a cooldown shown live on its button
+- **Stats dashboard** — press `Tab` (or click the corner badge) for career stats, achievement progress (e.g. 12/50), the memorial wall and full log
 - **7 achievements** — career-wide, survive across generations
 - **Random theater** — little scene bubbles every 2–5 min when stats are healthy
+- **`--fast` test mode** — `pet --fast` (or `--fast=120`) speeds the whole clock up ×60 by default: hatch in 3 s, a full life in ~20 min. Great for trying every feature; keep a separate save from your real pet
 
 ## Install
 
@@ -53,9 +57,10 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 | `w` | water | thirst +35 |
 | `b` | bath | clean +45, cures sickness |
 | `p` | play | mood +28, energy −15 |
-| `s` | sleep toggle | recovers energy, hungers slower |
+| `s` | sleep toggle | recovers energy fast (40/h; 4/h while awake), hungers slower asleep — other actions refused while sleeping |
 | `t` | pet it | mood +10 (60 s cooldown) — or click the pet |
-| `n` | rename | up to 8 chars, CJK OK |
+| `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
+| `n` | name (once) | up to 8 chars, CJK OK — the name sticks afterwards |
 | `r` | reset | keeps memorial & achievements, `y` to confirm |
 | `q` | quit | saves on exit |
 
@@ -64,6 +69,8 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 | Mechanic | Value |
 |----------|-------|
 | Decay (per hour) | thirst −20 · hunger −15 (−11 asleep) · mood −12 · clean −8 |
+| Refusal thresholds | won't eat >65 hunger · drink >65 thirst · bathe >60 clean · play >90 mood |
+| Cooldowns | feed/water 90 s · touch 60 s · play 3 min · snack 5 min · bath 10 min |
 | Typical cadence | water ~every 1.7 h · feed ~2 h · play ~2.5 h · bath half-day |
 | Sickness | clean < 15 for 2 h → appetite halved, mood capped; bath cures |
 | Dying | hunger AND thirst both 0 → 12 h rescue window (feed + water) |
