@@ -33,8 +33,9 @@ A pixel-art virtual pet that lives in your terminal. Single-file, zero-dependenc
 - **Action feedback** — every action plays a 2 s particle animation (falling food, water drops, rising bubbles, hearts…)
 - **Anti-spam actions** — pets refuse what they don't need (won't eat if not hungry) and each action has a cooldown shown live on its button
 - **Stats dashboard** — press `Tab` (or click the corner badge) for career stats, achievement progress (e.g. 12/50), the memorial wall and full log
-- **8 achievements** — career-wide, survive across generations
+- **9 achievements** — career-wide, survive across generations
 - **Random theater** — little scene bubbles every 2–5 min when stats are healthy
+- **Rock-paper-scissors** — `g` starts a best-of-3 match whenever you're just waiting around; each species has throw preferences you can learn, and matches always end with a happier pet
 - **`--fast` test mode** — `pet --fast` (or `--fast=120`) speeds the whole clock up ×60 by default: hatch in 3 s, a full life in ~20 min. Great for trying every feature; keep a separate save from your real pet
 
 ## Install
@@ -64,6 +65,7 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 | `p` | play | mood +28, energy −15, clean −5 (playing gets dirty) — refused if hungry <20, thirsty <20, or dying |
 | `s` | sleep toggle | recovers energy fast (40/h; 4/h while awake), hungers slower asleep — other actions refused while sleeping |
 | `t` | pet it | mood +10 (60 s cooldown) — or click the pet; gets annoyed (mood −3) past 2 pets per rolling hour |
+| `g` | rock-paper-scissors | best-of-3 match; each species has favorite throws you can learn — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
 | `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
 | `n` | name (once) | up to 8 chars, CJK OK — the name sticks afterwards |
 | `r` | reset | keeps memorial & achievements, `y` to confirm |
@@ -75,7 +77,7 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 |----------|-------|
 | Decay (per hour) | thirst −26 · hunger −20 (−16 asleep) · mood −18 · clean −11 |
 | Refusal thresholds | won't eat >65 hunger · drink >65 thirst · bathe >60 clean · play >90 mood · snack >85 hunger |
-| Cooldowns | feed/water 90 s · touch 60 s · play 3 min · snack 5 min · bath 10 min · medicine 3 min |
+| Cooldowns | feed/water 90 s · touch 60 s · play 3 min · rps 3 min · snack 5 min · bath 10 min · medicine 3 min |
 | Typical cadence | play ~every 30 min · water ~1.3 h · feed ~1.75 h · bath ~4 h — something to do every 25–30 min |
 | Sickness | clean < 15 for 2 h → appetite halved, mood capped; bath cures the root, medicine the symptom |
 | Dying | hunger AND thirst both 0 → 4 h rescue window (feed + water); total collapse (energy & mood also 0) compresses it to 1 h |

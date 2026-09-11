@@ -54,7 +54,8 @@ const ACHIEVEMENTS = [
   { id: 'live3d',  icon: '🌱', name: '三日之约', desc: '存活 3 天',    check: s => livedDays(s) >= 3,   prog: s => `${livedDays(s).toFixed(1)}/3 天` },
   { id: 'live7d',  icon: '🌈', name: '一周你好', desc: '存活 7 天',    check: s => livedDays(s) >= 7,   prog: s => `${livedDays(s).toFixed(1)}/7 天` },
   { id: 'gen2',    icon: '👶', name: '生生不息', desc: '养到第 2 代',  check: s => s.generation >= 2,   prog: s => `第${s.generation}代` },
-  { id: 'dose10',  icon: '💉', name: '良药苦口', desc: '吃药 10 次',   check: s => s.stats.dose >= 10,  prog: s => `${s.stats.dose}/10` },
+  { id: 'dose10', icon: '💉', name: '良药苦口',   desc: '吃药 10 次',   check: s => s.stats.dose >= 10,  prog: s => `${s.stats.dose}/10` },
+  { id: 'rps20',  icon: '🤝', name: '棋逢对手',   desc: '猜拳 20 局',   check: s => (s.stats.rps || 0) >= 20, prog: s => `${s.stats.rps || 0}/20` },
 ]
 function livedDays(s) { return (Date.now() - s.bornAt) / 86400000 }
 
@@ -153,12 +154,13 @@ function defaultState() {
     dirtySince: 0, dyingSince: 0, diedAt: 0, deathCause: '',
     heartSince: 0, sickSince: 0, obeseSince: 0, exhaustSince: 0, // 四条异常死线计时(离线冻结)
     careScore: 0,
-    stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0 },
+    stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0, rps: 0 },
     achievements: [],
     memorial: [],              // [{name,species,days,cause,generation}]
     log: [],                   // 最近事件 [{t,text}]
     lastAct: {}, named: false, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, // bubble {text, until}
     touchLog: [],              // 摸摸时间戳(滚动1h窗口, 防白嫖心情)
+    rps: null,                 // 猜拳进行中 {me, pet, round}
   }
 }
 let S = defaultState()
@@ -195,7 +197,7 @@ const SICK_MS = SICK_AFTER_DIRTY_H * H / SCALE
 const DEATH_MS = 2 * H / SCALE   // 异常状态死线(心碎/病/肥胖/精竭): 2h
 const LIFESPAN_DAYS = 30         // 寿终正寝(荣誉死法)
 // 动作冷却(毫秒, 测试档同步加速); 配合阈值拒绝防狂点 — 数值健康时动作同样会被拒绝
-const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3, dose: 180e3 }
+const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3, dose: 180e3, rps: 180e3 }
 for (const _k in CD) CD[_k] /= SCALE
 function dec(v, rate, h) { return Math.max(0, v - rate * h) }
 function applyDecay(h) {
@@ -401,6 +403,47 @@ function act(kind) {
   setFx(kind) // 动作特效(FX_DEF 无定义的动作自动跳过)
   checkAchievements(); recheckStage(); save()
 }
+// ---------- 猜拳小游戏: 等待期的纯互动, 无需求门槛 ----------
+const THROWS = ['石头', '剪刀', '布']
+const RPS_TEND = { slime: [0.25, 0.25, 0.5], hamster: [0.3, 0.45, 0.25], dragon: [0.5, 0.3, 0.2] } // 出招性格(可被摸透)
+function petThrow() {
+  const w = (RPS_TEND[S.species] || [1 / 3, 1 / 3, 1 / 3]).slice()
+  const sum = w.reduce((a, b) => a + b, 0)
+  let r = Math.random() * sum
+  for (let i = 0; i < 3; i++) { r -= w[i]; if (r < 0) return i }
+  return 2
+}
+function startRps() {
+  if (S.stage !== 'alive' || S.rps) return
+  if (!S.awake) { bubble('睡得正香，摇不醒…'); return }
+  const left = Math.ceil((CD.rps - (Date.now() - (S.lastAct.rps || 0))) / 1000)
+  if (left > 0) { bubble(`它还在回味上一局（${left}s）`); return }
+  S.lastAct.rps = Date.now() // 开局即计 CD: 防偷看出招后弃局重开
+  S.rps = { me: 0, pet: 0, round: 1 }
+  log(`${S.name} 摆好了架势——猜拳，三局两胜！`)
+  render()
+}
+function rpsThrow(i) {
+  if (!S.rps) return
+  const p = petThrow()
+  const res = (i + 3 - p) % 3 // 环形克制 石>剪>布>石: 0 平 · 1 它赢 · 2 我赢
+  S.rps.round++
+  if (res === 2) S.rps.me++; else if (res === 1) S.rps.pet++
+  if (S.rps.me >= 2 || S.rps.pet >= 2) {
+    const won = S.rps.me >= 2, me = S.rps.me, pet = S.rps.pet
+    S.stats.rps = (S.stats.rps || 0) + 1
+    if (won) { S.mood = clamp(S.mood + 15); S.energy = clamp(S.energy - 8); S.careScore++ }
+    else S.mood = clamp(S.mood + 5)
+    S.rps = null
+    S.mood = Math.min(S.mood, moodCap())
+    bubble(won ? '愿赌服输！再来再来！' : '嘿嘿赢啦～输了也陪你玩得很开心！')
+    log(won ? `猜拳获胜 ${me}:${pet}` : `猜拳落败 ${me}:${pet}`)
+    checkAchievements(); save(); render()
+  } else {
+    bubble(`你出${THROWS[i]}，它出${THROWS[p]} —— 现在 ${S.rps.me} : ${S.rps.pet}`, 6)
+    save()
+  }
+}
 function newEgg() {
   // 保留 memorial/generation+1, 其余重置为 eggSelect
   const memorial = S.memorial, gen = (S.generation || 1), ach = S.achievements, stats = S.stats
@@ -502,29 +545,41 @@ function bar(label, v, color, extra = '') {
   return `${label} ${bg(...color)}${' '.repeat(filled)}${R}${dim}${'·'.repeat(w - filled)}${R} ${String(Math.round(v)).padStart(3)}${extra}`
 }
 const hotButtons = [] // {row, c0, c1, kind}
-const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t' }
+const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t', rps: 'g', rps1: '1', rps2: '2', rps3: '3' }
 function buttonBar(row) {
   let defs = [
     ['f', '喂食', 'feed'], ['1', '零食', 'snack'], ['w', '喂水', 'water'], ['b', '洗澡', 'bath'],
-    ['p', '玩耍', 'play'], ['s', '睡觉', 'sleepToggle'], ['t', '摸摸', 'touch'], ['d', '吃药', 'dose'], ['n', '起名', 'rename'],
+    ['p', '玩耍', 'play'], ['s', '睡觉', 'sleepToggle'], ['t', '摸摸', 'touch'], ['d', '吃药', 'dose'],
+    ['g', '猜拳', 'rps'], ['n', '起名', 'rename'],
     ['r', '重置', 'reset'], ['q', '退出', 'quit'],
   ]
   if (S.named) defs = defs.filter(d => d[2] !== 'rename') // 起名一次性, 定名后收起
   const gap = 1
-  const totalW = defs.reduce((w, [k, label]) => w + dispW(`[${k} ${label}]`) + 3 + gap, 0) // +3 冷却后缀余量
-  const perRow = 3 + totalW > TERM_W ? 5 : defs.length // 窄屏折两行(前5后5)
-  let col = 3, r = row
-  defs.forEach(([k, label, kind], i) => {
-    if (i === perRow) { col = 3; r = row + 1 }
-    let text = `[${k} ${label}]`
-    let style = bg(60, 70, 100) + fg(230, 230, 240) + bold
-    if (CD[kind]) { // 冷却中: 置灰+倒计时
-      const left = Math.ceil((CD[kind] - (Date.now() - (S.lastAct[kind] || 0))) / 1000)
-      if (left > 0) { text = `[${k} ${label}·${left}s]`; style = dim + fg(110, 110, 120) }
+  const btnW = (k, label) => dispW(`[${k} ${label}]`) + 3 + gap // +3 冷却后缀余量
+  // 按显示宽度贪心分行(任意按钮数/任意宽度自适应)
+  const chunks = []
+  for (let i = 0; i < defs.length;) {
+    let w = 3, n = 0
+    while (i + n < defs.length) {
+      const bw = btnW(...defs[i + n].slice(0, 2))
+      if (w + bw > TERM_W - 1 && n > 0) break
+      w += bw; n++
     }
-    at(r, col, style + text + R)
-    hotButtons.push({ row: r, c0: col, c1: col + dispW(text) - 1, kind })
-    col += dispW(text) + gap
+    chunks.push(defs.slice(i, i + n)); i += n
+  }
+  chunks.forEach((chunk, ci) => {
+    let col = 3
+    chunk.forEach(([k, label, kind]) => {
+      let text = `[${k} ${label}]`
+      let style = bg(60, 70, 100) + fg(230, 230, 240) + bold
+      if (CD[kind]) { // 冷却中: 置灰+倒计时
+        const left = Math.ceil((CD[kind] - (Date.now() - (S.lastAct[kind] || 0))) / 1000)
+        if (left > 0) { text = `[${k} ${label}·${left}s]`; style = dim + fg(110, 110, 120) }
+      }
+      at(row + ci, col, style + text + R)
+      hotButtons.push({ row: row + ci, c0: col, c1: col + dispW(text) - 1, kind })
+      col += dispW(text) + gap
+    })
   })
 }
 // 动作特效(FX): 每动作 2s 粒子动画, frame 驱动, 与气泡并存
@@ -560,6 +615,7 @@ function render() {
 
   if (S.stage === 'eggSelect') { renderEggSelect(); return }
   if (S.stage === 'dead') { renderGrave(); return }
+  if (S.rps && S.stage === 'alive') { renderRps(); return }
   if (PAGE === 'stats') { renderStats(); return }
 
   // 头部
@@ -624,12 +680,31 @@ function render() {
 
   // 成就/纪念收纳为角标(点击或 Tab 进数据面板) + 最新一条日志独占行(不再与数值区接壤)
   const gotN = ACHIEVEMENTS.filter(a => S.achievements.includes(a.id)).length
-  at(rowB + 4, 3, dim + `🏆 ${gotN}/${ACHIEVEMENTS.length}   🕊 ${S.memorial.length}` + R)
+  at(rowB + 3, 3, dim + `🏆 ${gotN}/${ACHIEVEMENTS.length}   🕊 ${S.memorial.length}` + R)
   const lastLog = S.log[S.log.length - 1]
-  if (lastLog) at(rowB + 5, 3, dim + lastLog.text.slice(0, TERM_W - 5) + R)
+  if (lastLog) at(rowB + 4, 3, dim + lastLog.text.slice(0, TERM_W - 5) + R)
 
-  buttonBar(23)
-  hotButtons.push({ row: rowB + 4, c0: 3, c1: 12, kind: 'toggleStats' }) // 角标热区
+  buttonBar(22)
+  hotButtons.push({ row: rowB + 3, c0: 3, c1: 12, kind: 'toggleStats' }) // 角标热区
+}
+function renderRps() {
+  const EW = Math.min(TERM_W, +(process.stdout.columns || TERM_W))
+  const title = `猜拳 · 三局两胜 —— 你 ${S.rps.me} : ${S.rps.pet} ${S.name || '它'}`
+  at(2, Math.max(1, ((EW - dispW(title)) >> 1) + 1), bold + fg(255, 220, 120) + title + R)
+  const gs = grownStage()
+  const frames = ART[S.species][gs === 'baby' ? 'baby' : 'adult']
+  drawArt(frames[frame % frames.length], 6, Math.max(2, Math.floor((EW - frames[0][0].length) / 2)))
+  const hint = `第 ${S.rps.round} 局 · 出招吧！`
+  at(14, Math.max(1, ((EW - dispW(hint)) >> 1) + 1), dim + hint + R)
+  const opts = ['1 石头', '2 剪刀', '3 布']
+  const pitch = Math.floor((EW - 6) / 3)
+  opts.forEach((t, i) => {
+    const col = 3 + i * pitch, txt = `[${t}]`
+    at(17, col + Math.max(0, (pitch - dispW(txt)) >> 1), bg(60, 70, 100) + fg(230, 230, 240) + bold + txt + R)
+    for (let r = 16; r <= 18; r++) hotButtons.push({ row: r, c0: col, c1: col + pitch - 2, kind: 'rps' + (i + 1) })
+  })
+  at(21, 3, dim + '出招: 键盘 1/2/3 或点击按钮 · [q 罢手离开(不计输赢)]' + R)
+  renderStars()
 }
 function renderEggSelect() {
   const EW = Math.min(TERM_W, +(process.stdout.columns || TERM_W))
@@ -677,7 +752,7 @@ function renderStats() {
   const twoCol = TERM_W >= 66
   // 生涯动作(2列×4行, 最长~40列, 不与右栏col44冲突)
   at(3, 3, dim + '— 生涯动作 —' + R)
-  const acts = [['feed', '喂食'], ['snack', '零食'], ['water', '喂水'], ['bath', '洗澡'], ['play', '玩耍'], ['touch', '摸摸'], ['dose', '吃药']]
+  const acts = [['feed', '喂食'], ['snack', '零食'], ['water', '喂水'], ['bath', '洗澡'], ['play', '玩耍'], ['touch', '摸摸'], ['dose', '吃药'], ['rps', '猜拳']]
   acts.forEach(([k, label], i) => at(4 + Math.floor(i / 2), 3 + (i % 2) * 22, `${label} ${bold}${S.stats[k] || 0}${R}`))
   // 成就(含进度)
   at(9, 3, dim + `— 成就 ${S.achievements.length}/${ACHIEVEMENTS.length} —` + R)
@@ -749,6 +824,11 @@ function setupInput(onAction, onQuit, onRename) {
       else { S.askReset = false; render() }
       return
     }
+    if (S.rps) { // 猜拳进行中: 只认出招/退出
+      if (k >= '1' && k <= '3') { rpsThrow(+k - 1); render() }
+      else if (k === 'q') { S.rps = null; render() }
+      return
+    }
     if (k.length === 1 && k >= '1' && k <= '3' && S.stage === 'eggSelect') { pickEgg(+k); return }
     if (k === '\t') { // 数据面板切换(选蛋/墓碑界面不适用)
       if (S.stage !== 'eggSelect' && S.stage !== 'dead') { PAGE = PAGE === 'main' ? 'stats' : 'main'; render() }
@@ -770,6 +850,7 @@ function setupInput(onAction, onQuit, onRename) {
     else if (k === 's') onAction('sleepToggle')
     else if (k === 't') onAction('touch')
     else if (k === 'd') onAction('dose')
+    else if (k === 'g') startRps()
   }
 }
 function hitTest(row, col) {
