@@ -368,6 +368,7 @@ function act(kind) {
       if (S.stage === 'dying') { bubble('它连站都站不稳了…'); break }
       S.mood = clamp(S.mood + 28); S.energy = clamp(S.energy - 15)
       S.hunger = clamp(S.hunger - 4); S.thirst = clamp(S.thirst - 6)
+      S.clean = clamp(S.clean - 5) // 玩得一身泥
       S.stats.play++; S.careScore += 2; S.lastAct.play = Date.now(); bubble('耶！再玩一次！'); break
     }
     case 'sleepToggle': {

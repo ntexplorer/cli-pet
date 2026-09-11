@@ -61,7 +61,7 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 | `w` | water | thirst +35 |
 | `b` | bath | clean +45, cures sickness (root cure) |
 | `d` | medicine | only when sick: instant cure, mood −20, energy −15 — dirt remains, re-sickens in 2 h unless bathed |
-| `p` | play | mood +28, energy −15 — refused if hungry <20, thirsty <20, or dying |
+| `p` | play | mood +28, energy −15, clean −5 (playing gets dirty) — refused if hungry <20, thirsty <20, or dying |
 | `s` | sleep toggle | recovers energy fast (40/h; 4/h while awake), hungers slower asleep — other actions refused while sleeping |
 | `t` | pet it | mood +10 (60 s cooldown) — or click the pet |
 | `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
