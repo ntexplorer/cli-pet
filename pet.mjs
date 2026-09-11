@@ -648,41 +648,57 @@ function renderGrave() {
 }
 // 数据面板(Tab): 生涯统计 + 成就进度 + 纪念墙 + 全量日志
 function renderStats() {
+  // 显示宽度感知截断(中文 2 cell): 防 60 列窄屏头部撞返回按钮/越界
+  const dSlice = (s, budget) => { let w = 0, out = ''; for (const ch of s) { w += /[\x00-\x7f]/.test(ch) ? 1 : 2; if (w > budget) break; out += ch } return out }
   const spec = SPECIES[S.species]
-  at(1, 2, bold + fg(255, 255, 255) + '📋 数据面板' + R + dim + `  ${S.name} · ${spec?.label || ''} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天 · ${S.weight.toFixed(1)}kg${SCALE > 1 ? ' · ⏩x' + SCALE : ''}` + R)
   const back = '[Tab 返回主界面]'
-  at(1, TERM_W - back.length - 2, bg(60, 70, 100) + fg(230, 230, 240) + back + R)
-  hotButtons.push({ row: 1, c0: TERM_W - back.length - 1, c1: TERM_W - 3, kind: 'toggleStats' })
-  // 生涯动作
+  const backW = [...back].reduce((w, c) => w + (/[\x00-\x7f]/.test(c) ? 1 : 2), 0) // 显示宽度(CJK 2 cell)
+  const backCol = TERM_W - backW - 1
+  const headInfo = `  ${S.name} · ${spec?.label || ''} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天 · ${S.weight.toFixed(1)}kg${SCALE > 1 ? ' · ⏩x' + SCALE : ''}`
+  at(1, 2, bold + fg(255, 255, 255) + '📋 数据面板' + R + dim + dSlice(headInfo, backCol - 16) + R)
+  at(1, backCol, bg(60, 70, 100) + fg(230, 230, 240) + back + R)
+  hotButtons.push({ row: 1, c0: backCol, c1: backCol + back.length - 1, kind: 'toggleStats' })
+  // 两栏布局: 左栏动作+成就, 右栏图鉴+纪念墙, 日志通栏底部; 窄屏(<66)单列+压缩摘要
+  const twoCol = TERM_W >= 66
+  // 生涯动作(2列×4行, 最长~40列, 不与右栏col44冲突)
   at(3, 3, dim + '— 生涯动作 —' + R)
   const acts = [['feed', '喂食'], ['snack', '零食'], ['water', '喂水'], ['bath', '洗澡'], ['play', '玩耍'], ['touch', '摸摸'], ['dose', '吃药']]
-  acts.forEach(([k, label], i) => at(4 + Math.floor(i / 3), 3 + (i % 3) * 26, `${label} ${bold}${S.stats[k] || 0}${R}`))
+  acts.forEach(([k, label], i) => at(4 + Math.floor(i / 2), 3 + (i % 2) * 22, `${label} ${bold}${S.stats[k] || 0}${R}`))
   // 成就(含进度)
-  at(7, 3, dim + `— 成就 ${S.achievements.length}/${ACHIEVEMENTS.length} —` + R)
+  at(9, 3, dim + `— 成就 ${S.achievements.length}/${ACHIEVEMENTS.length} —` + R)
   ACHIEVEMENTS.forEach((a, i) => {
     const got = S.achievements.includes(a.id)
     const txt = `${a.icon} ${a.name}  ${a.desc}${got ? '' : a.prog ? `  ${a.prog(S)}` : ''}`
-    at(8 + i, 3, (got ? fg(255, 220, 120) : dim) + txt + R)
+    at(10 + i, 3, (got ? fg(255, 220, 120) : dim) + dSlice(txt, TERM_W - 5) + R)
   })
-  // 纪念墙
-  let r = 8 + ACHIEVEMENTS.length + 1
-  at(r, 3, dim + `— 纪念墙 ${S.memorial.length} —` + R)
-  S.memorial.slice(-3).reverse().forEach((m, i) => {
-    const md = DEATHS.find(x => x.cause === m.cause)
-    at(r + 1 + i, 3, `${m.name} · ${SPECIES[m.species]?.label || m.species} · 存活${m.days}天 · ${md ? md.icon + md.name : m.cause}`)
-  })
-  // 日志(最新在上, 截到 22 行)
-  let r2 = r + 1 + Math.min(3, S.memorial.length) + 1
-  at(r2, 3, dim + '— 日志 —' + R)
-  S.log.slice().reverse().forEach((e, i) => { if (r2 + 1 + i <= 22) at(r2 + 1 + i, 3, dim + e.text.slice(0, TERM_W - 6) + R) })
-  // 死法图鉴(Dead Cells 式收集): 没见过的显示 ???
-  const dexCol = 44
-  at(3, dexCol, dim + `— 死法图鉴 ${DEATHS.filter(d => S.memorial.some(m => m.cause === d.cause)).length}/${DEATHS.length} —` + R)
-  DEATHS.forEach((d, i) => {
-    const n = S.memorial.filter(m => m.cause === d.cause).length
-    const got = n > 0
-    at(4 + i, dexCol, (got ? (d.cause === '寿终正寝' ? fg(255, 220, 120) + bold : fg(220, 120, 120)) : dim) + `${got ? d.icon + ' ' + d.name + (n > 1 ? ` ×${n}` : '') : '???'}` + R)
-  })
+  if (twoCol) {
+    // 右栏: 图鉴 rows 3-9 + 纪念墙 rows 11-14
+    const dexCol = 44
+    at(3, dexCol, dim + `— 死法图鉴 ${DEATHS.filter(d => S.memorial.some(m => m.cause === d.cause)).length}/${DEATHS.length} —` + R)
+    DEATHS.forEach((d, i) => {
+      const n = S.memorial.filter(m => m.cause === d.cause).length
+      const got = n > 0
+      at(4 + i, dexCol, (got ? (d.cause === '寿终正寝' ? fg(255, 220, 120) + bold : fg(220, 120, 120)) : dim) + `${got ? d.icon + ' ' + d.name + (n > 1 ? ` ×${n}` : '') : '???'}` + R)
+    })
+    at(11, dexCol, dim + `— 纪念墙 ${S.memorial.length} —` + R)
+    S.memorial.slice(-3).reverse().forEach((m, i) => {
+      const md = DEATHS.find(x => x.cause === m.cause)
+      at(12 + i, dexCol, `${m.name}·存活${m.days}天·${md ? md.icon + md.name : m.cause}`)
+    })
+    // 日志(通栏底部)
+    at(19, 3, dim + '— 日志 —' + R)
+    S.log.slice().reverse().forEach((e, i) => { if (20 + i <= 22) at(20 + i, 3, dim + e.text.slice(0, TERM_W - 6) + R) })
+  } else {
+    // 窄屏单列: 图鉴压缩为一行 icon 摘要 + 纪念墙 2 条, 不显示日志(与主界面策略一致)
+    const gotD = DEATHS.map(d => ({ d, n: S.memorial.filter(m => m.cause === d.cause).length }))
+    const sum = gotD.map(({ d, n }) => n > 0 ? `${d.icon}${n > 1 ? n : ''}` : '❔').join(' ')
+    at(19, 3, dim + `— 死法图鉴 ${gotD.filter(x => x.n > 0).length}/${DEATHS.length}: ${sum} —` + R)
+    at(20, 3, dim + `— 纪念墙 ${S.memorial.length} —` + R)
+    S.memorial.slice(-2).reverse().forEach((m, i) => {
+      const md = DEATHS.find(x => x.cause === m.cause)
+      at(21 + i, 3, dim + `${m.name}·${m.days}天·${md ? md.icon + md.name : m.cause}` + R)
+    })
+  }
 }
 function fmtDur(ms) {
   const m = Math.round(ms / 60000)
