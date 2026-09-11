@@ -37,6 +37,7 @@ const MOURN_H = 2                  // 死亡后守灵
 const OFFLINE_DECAY_CAP_H = 48     // 离线衰减封顶（离线不致死，数值另有托底）
 const HATCH_MIN = 3                // 蛋孵化分钟
 const GROW_CARE = 40               // 幼年→成年需要的照顾分
+const ELDER_DAYS = 21              // 暮年期入口(天): 与成长期镜像 — 前半程靠照顾变强, 后半程靠陪伴变暖
 const ACTIONS = {
   feed:  { key: 'f', label: '喂食', },
   snack: { key: '1', label: '零食', },
@@ -56,6 +57,7 @@ const ACHIEVEMENTS = [
   { id: 'gen2',    icon: '👶', name: '生生不息', desc: '养到第 2 代',  check: s => s.generation >= 2,   prog: s => `第${s.generation}代` },
   { id: 'dose10', icon: '💉', name: '良药苦口',   desc: '吃药 10 次',   check: s => s.stats.dose >= 10,  prog: s => `${s.stats.dose}/10` },
   { id: 'rps20',  icon: '🤝', name: '棋逢对手',   desc: '猜拳 20 局',   check: s => (s.stats.rps || 0) >= 20, prog: s => `${s.stats.rps || 0}/20` },
+  { id: 'lifespan', icon: '⭐', name: '三十日谈', desc: '送走一只寿终正寝', check: s => s.memorial.some(m => m.cause === '寿终正寝'), prog: () => '送它最后一程' },
 ]
 function livedDays(s) { return (Date.now() - s.bornAt) / 86400000 }
 
@@ -206,8 +208,8 @@ function applyDecay(h) {
   S.hunger = dec(S.hunger, sleeping ? DECAY.hunger - 4 : DECAY.hunger, h) // 睡着饿得慢 20→16/h
   S.thirst = dec(S.thirst, DECAY.thirst, h)
   S.clean = dec(S.clean, DECAY.clean, h)
-  S.mood = dec(S.mood, DECAY.mood, h)
-  S.weight = Math.max(0.2, S.weight - DECAY.weight * h)
+  S.mood = dec(S.mood, isElder() ? DECAY.mood + 4 : DECAY.mood, h) // 暮年更怕寂寞 18→22/h
+  S.weight = Math.max(0.2, S.weight - DECAY.weight * (isElder() ? 0.5 : 1) * h) // 暮年代谢慢, 更易发福
   // 低指标拖累心情
   let extra = 0
   if (S.hunger < 30) extra += 4
@@ -216,8 +218,8 @@ function applyDecay(h) {
   if (extra) S.mood = dec(S.mood, extra, h)
   // 睡觉回精力(小睡 2h 满; 醒着自然恢复 4/h)
   // 精力: 睡 40/h 醒 4/h; 醒着归零后锁死(虚脱, 必须睡觉才能回) — 否则猝死死线永远无法触达
-  if (sleeping) S.energy = Math.min(100, S.energy + 40 * h)
-  else if (S.energy > 0) S.energy = Math.min(100, S.energy + 4 * h)
+  if (sleeping) S.energy = Math.min(100, S.energy + (isElder() ? 30 : 40) * h) // 暮年觉浅
+  else if (S.energy > 0) S.energy = Math.min(100, S.energy + (isElder() ? 2 : 4) * h)
 }
 function moodCap() {
   const base = S.weight > fatLine() ? 75 : 100
@@ -315,7 +317,8 @@ function hatch() {
   save()
 }
 function isSleepTime() { const h = new Date().getHours(); return h >= 23 || h < 7 }
-function grownStage() { return S.careScore >= GROW_CARE ? 'adult' : 'baby' }
+function isElder() { return livedDays(S) >= ELDER_DAYS }
+function grownStage() { return isElder() ? 'elder' : S.careScore >= GROW_CARE ? 'adult' : 'baby' }
 
 // ---------- 动作 ----------
 function clamp(v, a = 0, b = 100) { return Math.max(a, Math.min(b, v)) }
@@ -336,7 +339,8 @@ function act(kind) {
       if (cdLeft('feed') > 0) { bubble(`还想吃？消化一下（${cdLeft('feed')}s）`); break }
       if (S.hunger > 65) { bubble('还不饿~'); break }
       if (S.thirst < 20) { bubble('口太干了，先喝点水吧…'); break }
-      const gain = sick ? 16 : 32
+      const base = isElder() ? 22 : 32 // 暮年胃口变小
+      const gain = sick ? Math.round(base / 2) : base
       S.hunger = clamp(S.hunger + gain); S.weight += 0.15; S.stats.feed++
       S.careScore++; S.lastAct.feed = Date.now()
       bubble(sick ? '没什么胃口…还是吃了' : '嗷呜嗷呜，好吃！'); break
@@ -369,7 +373,7 @@ function act(kind) {
       if (S.hunger < 20) { bubble('肚子空空的，玩不动…'); break }
       if (S.thirst < 20) { bubble('渴得口干舌燥，玩不动…'); break }
       if (S.stage === 'dying') { bubble('它连站都站不稳了…'); break }
-      S.mood = clamp(S.mood + 28); S.energy = clamp(S.energy - 15)
+      S.mood = clamp(S.mood + (isElder() ? 20 : 28)); S.energy = clamp(S.energy - (isElder() ? 22 : 15)) // 暮年玩一会就喘
       S.hunger = clamp(S.hunger - 4); S.thirst = clamp(S.thirst - 6)
       S.clean = clamp(S.clean - 5) // 玩得一身泥
       S.stats.play++; S.careScore += 2; S.lastAct.play = Date.now(); bubble('耶！再玩一次！'); break
@@ -389,13 +393,14 @@ function act(kind) {
     }
     case 'touch': {
       if (cdLeft('touch') > 0) { bubble('（被摸得毛都乱了…）'); break }
-      // 腻烦机制: 滚动 1h 窗口内前 2 次有效(+10 心情), 超出反效果 — 摸摸是亲昵不是白嫖心情渠道
+      // 腻烦机制: 滚动 1h 窗口内前 N 次有效, 超出反效果 — 摸摸是亲昵不是白嫖心情渠道(暮年 N=3 更黏人)
+      const quota = isElder() ? 3 : 2, gainT = isElder() ? 12 : 10
       const hourAgo = Date.now() - 3600000 / SCALE
       S.touchLog = (S.touchLog || []).filter(t => t > hourAgo)
       S.lastAct.touch = Date.now()
-      if (S.touchLog.length >= 2) { S.mood = clamp(S.mood - 3); bubble('被摸烦了，甩甩尾巴不理你'); break }
+      if (S.touchLog.length >= quota) { S.mood = clamp(S.mood - 3); bubble('被摸烦了，甩甩尾巴不理你'); break }
       S.touchLog.push(Date.now())
-      S.mood = clamp(S.mood + 10); S.stats.touch++
+      S.mood = clamp(S.mood + gainT); S.stats.touch++
       S.careScore++; bubble('呼噜呼噜…最喜欢你了'); break
     }
   }
@@ -408,6 +413,7 @@ const THROWS = ['石头', '剪刀', '布']
 const RPS_TEND = { slime: [0.25, 0.25, 0.5], hamster: [0.3, 0.45, 0.25], dragon: [0.5, 0.3, 0.2] } // 出招性格(可被摸透)
 function petThrow() {
   const w = (RPS_TEND[S.species] || [1 / 3, 1 / 3, 1 / 3]).slice()
+  if (isElder()) { const mi = w.indexOf(Math.max(...w)); w[mi] *= 1.6 } // 暮年出招更固执
   const sum = w.reduce((a, b) => a + b, 0)
   let r = Math.random() * sum
   for (let i = 0; i < 3; i++) { r -= w[i]; if (r < 0) return i }
@@ -478,7 +484,7 @@ function doChat() {
   const left = Math.ceil((CD.chat - (Date.now() - (S.lastAct.chat || 0))) / 1000)
   if (left > 0) { bubble(`它在整理思绪…（${left}s）`); return }
   S.lastAct.chat = Date.now()
-  S.mood = clamp(S.mood + 2); S.stats.chat = (S.stats.chat || 0) + 1
+  S.mood = clamp(S.mood + (isElder() ? 4 : 2)); S.stats.chat = (S.stats.chat || 0) + 1
   bubble(pickChatLine(), 10)
   S.mood = Math.min(S.mood, moodCap()); checkAchievements(); save(); render()
 }
@@ -557,7 +563,7 @@ function renderStars() {
 }
 function drawArt(rows, top, left, padCols = 0) {
   const main = SPECIES[S.species]?.color || [200, 200, 200]
-  const desat = (S.stage === 'alive' || S.stage === 'dying') ? (S.mood < 30 ? 0.5 : S.weight < thinLine() ? 0.2 : 0) : 0
+  const desat = (S.stage === 'alive' || S.stage === 'dying') ? Math.max(isElder() ? 0.35 : 0, S.mood < 30 ? 0.5 : S.weight < thinLine() ? 0.2 : 0) : 0
   const mix = c => c.map(v => Math.round(v + (128 - v) * desat))
   for (let ri = 0; ri < rows.length; ri++) {
     const line = rows[ri]
@@ -657,7 +663,7 @@ function render() {
   if (PAGE === 'stats') { renderStats(); return }
 
   // 头部
-  const stageZh = { egg: '蛋·孵化中', alive: grownStage() === 'adult' ? '成年期' : '幼年期', dying: '!! 弥留 !!' }[S.stage]
+  const stageZh = { egg: '蛋·孵化中', alive: { baby: '幼年期', adult: '成年期', elder: '暮年期' }[grownStage()], dying: '!! 弥留 !!' }[S.stage]
   at(1, 2, bold + fg(255, 255, 255) + `${S.name || '?'}${R}${dim}  ${SPECIES[S.species]?.label || ''} · ${stageZh} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天${R}`)
   const h = new Date().getHours()
   const dayTxt = ({ night: '夜 · 静悄悄', dawn: '晨 · 微光', day: '昼 · 明亮', dusk: '暮 · 橙红' }[h >= 23 || h < 5 ? 'night' : h < 8 ? 'dawn' : h < 17 ? 'day' : 'dusk'])
@@ -670,7 +676,7 @@ function render() {
   if (S.stage === 'egg') art = eggArt(S.species, hatchProgress())
   else {
     const stage = grownStage()
-    const frames = artSet[stage]
+    const frames = artSet[stage === 'elder' ? 'adult' : stage] // 暮年复用成年帧, 靠去饱和显老态
     const sleeping = isSleepTime() || !S.awake // 与衰减侧判定一致
   const base = sleeping ? frames[0] : frames[frame % frames.length]
   art = moodOverlay(wanderFace < 0 ? base.map(r => [...r].reverse().join('')) : base) // 漫游朝向镜像
@@ -695,6 +701,7 @@ function render() {
   for (const t of deathTimers()) {
     if (t.left > 0) statusIcons.push(bold + fg(255, 60, 60) + `${t.icon}${fmtDur(t.left)}` + R)
   }
+  if (isElder()) statusIcons.push(fg(255, 220, 120) + `⭐${Math.max(0, LIFESPAN_DAYS - livedDays(S)).toFixed(1)}天` + R) // 寿终倒计时(金色·荣誉)
   at(artTop + art.length + 1, Math.floor(TERM_W / 2) - 10, statusIcons.join(' '))
   // 气泡
   if (S.bubble && Date.now() < S.bubble.until) {
@@ -814,17 +821,17 @@ function renderStats() {
       at(12 + i, dexCol, `${m.name}·存活${m.days}天·${md ? md.icon + md.name : m.cause}`)
     })
     // 日志(通栏底部)
-    at(19, 3, dim + '— 日志 —' + R)
-    S.log.slice().reverse().forEach((e, i) => { if (20 + i <= 22) at(20 + i, 3, dim + e.text.slice(0, TERM_W - 6) + R) })
+    at(20, 3, dim + '— 日志 —' + R)
+    S.log.slice().reverse().forEach((e, i) => { if (21 + i <= 22) at(21 + i, 3, dim + e.text.slice(0, TERM_W - 6) + R) })
   } else {
     // 窄屏单列: 图鉴压缩为一行 icon 摘要 + 纪念墙 2 条, 不显示日志(与主界面策略一致)
     const gotD = DEATHS.map(d => ({ d, n: S.memorial.filter(m => m.cause === d.cause).length }))
     const sum = gotD.map(({ d, n }) => n > 0 ? `${d.icon}${n > 1 ? n : ''}` : '❔').join(' ')
-    at(19, 3, dim + `— 死法图鉴 ${gotD.filter(x => x.n > 0).length}/${DEATHS.length}: ${sum} —` + R)
-    at(20, 3, dim + `— 纪念墙 ${S.memorial.length} —` + R)
+    at(21, 3, dim + `— 死法图鉴 ${gotD.filter(x => x.n > 0).length}/${DEATHS.length}: ${sum} —` + R)
+    at(22, 3, dim + `— 纪念墙 ${S.memorial.length} —` + R)
     S.memorial.slice(-2).reverse().forEach((m, i) => {
       const md = DEATHS.find(x => x.cause === m.cause)
-      at(21 + i, 3, dim + `${m.name}·${m.days}天·${md ? md.icon + md.name : m.cause}` + R)
+      if (23 + i <= 24) at(23 + i, 3, dim + `${m.name}·${m.days}天·${md ? md.icon + md.name : m.cause}` + R)
     })
   }
 }
@@ -989,7 +996,7 @@ setInterval(() => {
     if (S.stage === 'alive' && S.awake && Date.now() > wanderNext) {
       wanderTarget = Math.round((Math.random() * 2 - 1) * 6)
       if (wanderTarget === wanderOff) wanderTarget = wanderOff + (Math.random() < 0.5 ? -2 : 2)
-      wanderNext = Date.now() + (8 + Math.random() * 12) * 1000 / SCALE
+      wanderNext = Date.now() + (8 + Math.random() * 12) * (isElder() ? 1.6 : 1) * 1000 / SCALE
     }
     if (S.stage === 'alive') { // 异常死线计时维护(离线冻结, 弥留期暂停)
       S.heartSince = S.mood <= 0 ? (S.heartSince || Date.now()) : 0

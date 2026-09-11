@@ -19,7 +19,7 @@ A pixel-art virtual pet that lives in your terminal. Single-file, zero-dependenc
 
 - **Three species** — slime / hamster / dragon, each with distinct egg sprites, baby & adult pixel art (adult form unlocked through care)
 - **Five stats** — hunger, thirst, cleanliness, mood, energy; they decay in real time, tuned for an 8-hour workday: something to do every 25–30 minutes
-- **Full life arc** — egg (3 min hatch, with cracks & wiggles) → life → dying (4 h rescuable window) → grave → mourning → next generation, with a memorial wall and generation counter
+- **Full life arc** — egg (3 min hatch, with cracks & wiggles) → life (baby → adult → **elder from day 21**: fading but cozy) → dying (4 h rescuable window) → grave → mourning → next generation, with a memorial wall and generation counter
 - **Six ways to go** — 🥀 starvation · 💔 broken heart · 🤒 untreated sickness · 🍰 overfeeding · ⚡ exhaustion · ⭐ old age (30 days, honorary). Unseen causes show as `???` in the death codex (Dead-Cells style); active death timers show a red countdown badge on screen
 - **Interlocked needs** — pets refuse to play hungry/thirsty, won't eat with a dry throat (water first), can't sleep unless tired, won't nap at full energy; falling asleep anywhere requires actually sleeping it off
 - **Medicine** — `d` gives medicine: hard-gated (only when sick), cures symptoms instantly but the dirt that caused it remains — bathe for a real cure; bitter meds cost mood & energy
@@ -33,7 +33,7 @@ A pixel-art virtual pet that lives in your terminal. Single-file, zero-dependenc
 - **Action feedback** — every action plays a 2 s particle animation (falling food, water drops, rising bubbles, hearts…)
 - **Anti-spam actions** — pets refuse what they don't need (won't eat if not hungry) and each action has a cooldown shown live on its button
 - **Stats dashboard** — press `Tab` (or click the corner badge) for career stats, achievement progress (e.g. 12/50), the memorial wall and full log
-- **9 achievements** — career-wide, survive across generations
+- **10 achievements** — career-wide, survive across generations
 - **Random theater** — little scene bubbles every 2–5 min when stats are healthy
 - **Rock-paper-scissors** — `g` starts a best-of-3 match whenever you're just waiting around; each species has throw preferences you can learn, and matches always end with a happier pet
 - **Small talk** — `c` chats with your pet; what it says depends on stats, life stage and earned achievements
@@ -65,7 +65,7 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 | `d` | medicine | only when sick: instant cure, mood −20, energy −15 — dirt remains, re-sickens in 2 h unless bathed |
 | `p` | play | mood +28, energy −15, clean −5 (playing gets dirty) — refused if hungry <20, thirsty <20, or dying |
 | `s` | sleep toggle | recovers energy fast (40/h; 4/h while awake), hungers slower asleep — other actions refused while sleeping |
-| `t` | pet it | mood +10 (60 s cooldown) — or click the pet; gets annoyed (mood −3) past 2 pets per rolling hour |
+| `t` | pet it | mood +10 (60 s cooldown) — or click the pet; gets annoyed (mood −3) past 2 pets per rolling hour (3 when elderly, +12 each) |
 | `g` | rock-paper-scissors | best-of-3 match; each species has favorite throws you can learn — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
 | `c` | small talk | mood +2 (60 s cooldown); topics react to stats, age and achievements — sick pets whine, elders reminisce |
 | `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
@@ -84,7 +84,8 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 | Sickness | clean < 15 for 2 h → appetite halved, mood capped; bath cures the root, medicine the symptom |
 | Dying | hunger AND thirst both 0 → 4 h rescue window (feed + water); total collapse (energy & mood also 0) compresses it to 1 h |
 | Death timers | each terminal state (mood 0 · sick · 1.6× obese · awake at 0 energy) kills after 2 h if untreated — red countdown badge warns you |
-| Old age | survive 30 days → ⭐ honorary passing |
+| Elder stage | from day 21: smaller meals (+22), play tires it (−22 energy, +20 mood), lighter sleep (30/h), slower metabolism (gains weight easier), lonelier (mood −22/h), grayer & slower sprite — but cozier: 3 free pets/h (+12), richer chats (+4), stubborn RPS throws · ⭐ days-left badge |
+| Old age | survive 30 days → ⭐ honorary passing (achievement 三十日谈) |
 | Death codex | Tab → 6-entry gallery; unseen causes show `???` |
 | Interlocks | play needs hunger ≥20 & thirst ≥20 · eating needs thirst ≥20 · sleep needs energy ≤95 · awake at 0 energy = exhausted (locked, must sleep) |
 | Offline | stats floored (30/20), dying clock frozen — never dies away |
