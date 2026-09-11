@@ -63,7 +63,7 @@ Your save lives next to the script as `state.json` (gitignored). Delete it to st
 | `d` | medicine | only when sick: instant cure, mood −20, energy −15 — dirt remains, re-sickens in 2 h unless bathed |
 | `p` | play | mood +28, energy −15, clean −5 (playing gets dirty) — refused if hungry <20, thirsty <20, or dying |
 | `s` | sleep toggle | recovers energy fast (40/h; 4/h while awake), hungers slower asleep — other actions refused while sleeping |
-| `t` | pet it | mood +10 (60 s cooldown) — or click the pet |
+| `t` | pet it | mood +10 (60 s cooldown) — or click the pet; gets annoyed (mood −3) past 2 pets per rolling hour |
 | `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
 | `n` | name (once) | up to 8 chars, CJK OK — the name sticks afterwards |
 | `r` | reset | keeps memorial & achievements, `y` to confirm |

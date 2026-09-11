@@ -158,6 +158,7 @@ function defaultState() {
     memorial: [],              // [{name,species,days,cause,generation}]
     log: [],                   // 最近事件 [{t,text}]
     lastAct: {}, named: false, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, // bubble {text, until}
+    touchLog: [],              // 摸摸时间戳(滚动1h窗口, 防白嫖心情)
   }
 }
 let S = defaultState()
@@ -386,7 +387,13 @@ function act(kind) {
     }
     case 'touch': {
       if (cdLeft('touch') > 0) { bubble('（被摸得毛都乱了…）'); break }
-      S.lastAct.touch = Date.now(); S.mood = clamp(S.mood + 10); S.stats.touch++
+      // 腻烦机制: 滚动 1h 窗口内前 2 次有效(+10 心情), 超出反效果 — 摸摸是亲昵不是白嫖心情渠道
+      const hourAgo = Date.now() - 3600000 / SCALE
+      S.touchLog = (S.touchLog || []).filter(t => t > hourAgo)
+      S.lastAct.touch = Date.now()
+      if (S.touchLog.length >= 2) { S.mood = clamp(S.mood - 3); bubble('被摸烦了，甩甩尾巴不理你'); break }
+      S.touchLog.push(Date.now())
+      S.mood = clamp(S.mood + 10); S.stats.touch++
       S.careScore++; bubble('呼噜呼噜…最喜欢你了'); break
     }
   }
