@@ -32,7 +32,7 @@ const SPECIES = {
 // 每小时衰减 — 按 8h 工作日挂机调校: 每 35-45 分钟有一件事可做
 const DECAY = { hunger: 15, thirst: 20, clean: 8, mood: 12, weight: 0.1 }
 const SICK_AFTER_DIRTY_H = 2       // 洁净<15 持续 2h 生病
-const DYING_GRACE_H = 12           // 饱腹&口渴双 0 → 弥留 12h
+const DYING_GRACE_H = 4            // 饱腹&口渴双 0 → 弥留 4h(全衰竭压缩至 1h)
 const MOURN_H = 2                  // 死亡后守灵
 const OFFLINE_DECAY_CAP_H = 48     // 离线衰减封顶（离线不致死，数值另有托底）
 const HATCH_MIN = 3                // 蛋孵化分钟
@@ -54,6 +54,7 @@ const ACHIEVEMENTS = [
   { id: 'live3d',  icon: '🌱', name: '三日之约', desc: '存活 3 天',    check: s => livedDays(s) >= 3,   prog: s => `${livedDays(s).toFixed(1)}/3 天` },
   { id: 'live7d',  icon: '🌈', name: '一周你好', desc: '存活 7 天',    check: s => livedDays(s) >= 7,   prog: s => `${livedDays(s).toFixed(1)}/7 天` },
   { id: 'gen2',    icon: '👶', name: '生生不息', desc: '养到第 2 代',  check: s => s.generation >= 2,   prog: s => `第${s.generation}代` },
+  { id: 'dose10',  icon: '💉', name: '良药苦口', desc: '吃药 10 次',   check: s => s.stats.dose >= 10,  prog: s => `${s.stats.dose}/10` },
 ]
 function livedDays(s) { return (Date.now() - s.bornAt) / 86400000 }
 
@@ -65,6 +66,7 @@ const PAL = {
   R: [255, 80, 60], r: [190, 40, 30],          // 龙红/深红
   W: [245, 245, 245], B: [30, 30, 30], M: [90, 40, 40], // 眼白/瞳/嘴
   F: [255, 215, 0], f: [255, 140, 0],          // 火焰黄/橙
+  Y: [245, 225, 175],                          // 龙角骨质淡黄
   P: [255, 170, 200],                          // 粉(蛋/腮红)
   E: [240, 230, 140],                          // 蛋壳黄
   N: [120, 120, 130],                          // 石灰(墓碑)
@@ -102,12 +104,12 @@ const ART = {
   },
   dragon: {
     baby: [
-      ['....RRRR....', '...RRRRRR...', '...RWRRWR...', '...RRmmRR...', '.F.RRRRRR..F', '.F.RRRRRR..F', '....RRRR....', '...Rr..rR...'],
-      ['....RRRR....', '...RRRRRR...', '...RWRRWR...', '...RRmmRR...', '..FRRRRRRFF.', '..FRRRRRRFF.', '...fRRRRf...', '...Rr..rR...'],
+      ['....Y....', '....RRRR..', '..YRRRRRR.', '...RWRRWR.', '...RRmmRR.', '.F.RRRRRR.F', '.F.RRRRRR.F', '....RRRR...', '...RrrrR...'],
+      ['....Y....', '....RRRR..', '..YRRRRRR.', '...RWRRWR.', '...RRmmRR.', '..FRRRRRRFF', '..FRRRRRRFF', '...fRRRRf..', '...RrrrR...'],
     ],
     adult: [
-      ['.....RRRR.....', '....RRRRRR....', '....RWRRWR....', '....RRmmRR....', '.F..RRRRRR..F.', 'FF..RRRRRR..FF', 'FF.RRRRRRRR.FF', '.F.RrRRRRrR.F.', '...RRRRRRRR...', '...Rr....rR...', '...rr....rr...'],
-      ['.....RRRR.....', '....RRRRRR....', '....RWRRWR....', '....RRmmRR....', 'FF..RRRRRR..FF', '.FF.RRRRRR.FF.', '..FRRRRRRRRF..', '..F.RrRRRRrR.F', '..f.RRRRRRR.f.', '....Rr....rR..', '....rr....rr..'],
+      ['..Y....Y..', '..YY..YY..', '.....RRRR.....', '....RRRRRR....', '....RWRRWR....', '....RRmmRR....', '.F..RRRRRR..F.', 'FF..RRRRRR..FF', 'FF.RRRRRRRR.FF', '.F.RrRRRRrR.F.', '...RRRRRRRR...', '..RrrrrrrrR...', '..rr.....rr...'],
+      ['..Y....Y..', '..YY..YY..', '.....RRRR.....', '....RRRRRR....', '....RWRRWR....', '....RRmmRR....', 'FF..RRRRRR..FF', '.FF.RRRRRR.FF.', '..FRRRRRRRRF..', '..F.RrRRRRrR.F', '..f.RRRRRRR.f.', '..RrrrrrrrR...', '...rr....rr...'],
     ],
   },
 }
@@ -149,8 +151,9 @@ function defaultState() {
     hunger: 80, thirst: 80, clean: 80, mood: 80, energy: 80,
     weight: 0, awake: true,
     dirtySince: 0, dyingSince: 0, diedAt: 0, deathCause: '',
+    heartSince: 0, sickSince: 0, obeseSince: 0, exhaustSince: 0, // 四条异常死线计时(离线冻结)
     careScore: 0,
-    stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0 },
+    stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0 },
     achievements: [],
     memorial: [],              // [{name,species,days,cause,generation}]
     log: [],                   // 最近事件 [{t,text}]
@@ -163,6 +166,8 @@ function load() {
   try {
     const d = JSON.parse(readFileSync(STATE_FILE, 'utf8'))
     S = Object.assign(defaultState(), d)
+    S.stats = Object.assign(defaultState().stats, d.stats || {})   // 深合并: 老存档升级不丢新字段(dose 等)
+    S.lastAct = Object.assign({}, d.lastAct || {})
     // state 损坏防御: 有生命阶段却无有效物种 → 回到选蛋
     if (S.stage !== 'eggSelect' && S.stage !== 'dead' && !SPECIES[S.species]) S.stage = 'eggSelect'
     return true
@@ -186,8 +191,10 @@ const HATCH_MS = HATCH_MIN * 60000 / SCALE
 const GRACE_MS = DYING_GRACE_H * H / SCALE
 const MOURN_MS = MOURN_H * H / SCALE
 const SICK_MS = SICK_AFTER_DIRTY_H * H / SCALE
+const DEATH_MS = 2 * H / SCALE   // 异常状态死线(心碎/病/肥胖/精竭): 2h
+const LIFESPAN_DAYS = 30         // 寿终正寝(荣誉死法)
 // 动作冷却(毫秒, 测试档同步加速); 配合阈值拒绝防狂点 — 数值健康时动作同样会被拒绝
-const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3 }
+const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3, dose: 180e3 }
 for (const _k in CD) CD[_k] /= SCALE
 function dec(v, rate, h) { return Math.max(0, v - rate * h) }
 function applyDecay(h) {
@@ -205,7 +212,9 @@ function applyDecay(h) {
   if (S.clean < 30) extra += 3
   if (extra) S.mood = dec(S.mood, extra, h)
   // 睡觉回精力(小睡 2h 满; 醒着自然恢复 4/h)
-  S.energy = Math.min(100, S.energy + (sleeping ? 40 : 4) * h)
+  // 精力: 睡 40/h 醒 4/h; 醒着归零后锁死(虚脱, 必须睡觉才能回) — 否则猝死死线永远无法触达
+  if (sleeping) S.energy = Math.min(100, S.energy + 40 * h)
+  else if (S.energy > 0) S.energy = Math.min(100, S.energy + 4 * h)
 }
 function moodCap() {
   const base = S.weight > fatLine() ? 75 : 100
@@ -229,9 +238,10 @@ function catchUp() {
     S.hunger = Math.max(S.hunger, 30); S.thirst = Math.max(S.thirst, 30); S.clean = Math.max(S.clean, 30)
     S.mood = Math.max(S.mood, 20); S.weight = Math.max(S.weight, thinLine())
   }
-  // 弥留/生病计时离线冻结: 倒计时只在开着时走
+  // 弥留/生病/异常死线计时离线冻结: 倒计时只在开着时走
   if (stage0 === 'dying') S.dyingSince += dt
   if (S.dirtySince) S.dirtySince += dt
+  for (const k of ['heartSince', 'sickSince', 'obeseSince', 'exhaustSince']) if (S[k]) S[k] += dt
   // 蛋孵化推进
   if (S.stage === 'egg') {
     const need = HATCH_MS
@@ -242,19 +252,47 @@ function catchUp() {
   if (dt > 30 * 60000) log(`离线 ${fmtDur(dt)}，回到了 ${S.name || '宠物'} 身边`)
   save()
 }
+// 死法图鉴(Dead Cells 式收集): cause 与 memorial 记录匹配
+const DEATHS = [
+  { icon: '🥀', name: '油尽灯枯', cause: '饥饿与干渴' },
+  { icon: '💔', name: '心碎而亡', cause: '心碎而亡' },
+  { icon: '🤒', name: '病入膏肓', cause: '病入膏肓' },
+  { icon: '🍰', name: '撑死的',   cause: '撑死的' },
+  { icon: '⚡', name: '意外猝死', cause: '意外猝死' },
+  { icon: '⭐', name: '寿终正寝', cause: '寿终正寝' },
+]
+// 四条异常死线: 持续 2h 未解除 → 各自死法; 返回活跃死线角标(渲染用)
+function deathTimers() {
+  const now = Date.now(), out = []
+  if (S.stage === 'dying') out.push({ icon: '🥀', left: S.dyingSince + (S.energy <= 5 && S.mood <= 5 ? GRACE_MS / 4 : GRACE_MS) - now, name: '弥留' })
+  if (S.stage !== 'alive' && S.stage !== 'dying') return out
+  if (S.heartSince) out.push({ icon: '💔', left: S.heartSince + DEATH_MS - now, name: '心碎' })
+  if (S.sickSince) out.push({ icon: '🤒', left: S.sickSince + DEATH_MS - now, name: '重病' })
+  if (S.obeseSince) out.push({ icon: '🍰', left: S.obeseSince + DEATH_MS - now, name: '肥胖' })
+  if (S.exhaustSince) out.push({ icon: '⚡', left: S.exhaustSince + DEATH_MS - now, name: '精竭' })
+  return out
+}
 function recheckStage(dt = 0) {
+  const now = Date.now()
   if (S.stage === 'alive') {
     if (S.hunger <= 0 && S.thirst <= 0) {
-      S.stage = 'dying'; S.dyingSince = Date.now()
+      S.stage = 'dying'; S.dyingSince = now
       log(`${S.name} 饿晕过去了…（弥留 ${fmtDur(GRACE_MS)} 内喂食+喂水可救）`)
       bubble('（晕乎乎…好饿…好渴…）', 15); bell(3)
+    } else {
+      // 异常死线判定: 先到先死
+      if (S.heartSince && now - S.heartSince >= DEATH_MS) return die('心碎而亡')
+      if (S.sickSince && now - S.sickSince >= DEATH_MS) return die('病入膏肓')
+      if (S.obeseSince && now - S.obeseSince >= DEATH_MS) return die('撑死的')
+      if (S.exhaustSince && now - S.exhaustSince >= DEATH_MS) return die('意外猝死')
+      if (livedDays(S) >= LIFESPAN_DAYS) return die('寿终正寝')
     }
   } else if (S.stage === 'dying') {
-    const deadline = S.dyingSince + GRACE_MS
+    const deadline = S.dyingSince + (S.energy <= 5 && S.mood <= 5 ? GRACE_MS / 4 : GRACE_MS) // 全衰竭 → 弥留压缩 1/4
     if (S.hunger > 10 && S.thirst > 10) {
       S.stage = 'alive'; S.dyingSince = 0
       log(`${S.name} 被从鬼门关拉了回来！`); bubble('呼…差点睡着就醒不来了…', 10)
-    } else if (Date.now() >= deadline) {
+    } else if (now >= deadline) {
       die('饥饿与干渴')
     }
   } else if (S.stage === 'dead' && Date.now() - S.diedAt >= MOURN_MS) {
@@ -263,8 +301,9 @@ function recheckStage(dt = 0) {
 }
 function die(cause) {
   S.stage = 'dead'; S.diedAt = Date.now(); S.deathCause = cause
+  const d = DEATHS.find(x => x.cause === cause)
   S.memorial.push({ name: S.name, species: S.species, days: +livedDays(S).toFixed(1), cause, generation: S.generation })
-  log(`${S.name} 永远地离开了…（${cause}）`); bell(5)
+  log(`${S.name} 永远地离开了…${d ? d.icon + d.name : `（${cause}）`}${cause === '寿终正寝' ? '——圆满的一生' : ''}`); bell(5)
 }
 function hatch() {
   S.stage = 'alive'; S.hatchedAt = Date.now()
@@ -293,6 +332,7 @@ function act(kind) {
     case 'feed': {
       if (cdLeft('feed') > 0) { bubble(`还想吃？消化一下（${cdLeft('feed')}s）`); break }
       if (S.hunger > 65) { bubble('还不饿~'); break }
+      if (S.thirst < 20) { bubble('口太干了，先喝点水吧…'); break }
       const gain = sick ? 16 : 32
       S.hunger = clamp(S.hunger + gain); S.weight += 0.15; S.stats.feed++
       S.careScore++; S.lastAct.feed = Date.now()
@@ -323,13 +363,25 @@ function act(kind) {
       if (cdLeft('play') > 0) { bubble(`玩累了歇会儿（${cdLeft('play')}s）`); break }
       if (S.energy < 15) { bubble('太累了…想睡觉…'); break }
       if (S.mood > 90) { bubble('心情正好，不用哄~'); break }
+      if (S.hunger < 20) { bubble('肚子空空的，玩不动…'); break }
+      if (S.thirst < 20) { bubble('渴得口干舌燥，玩不动…'); break }
+      if (S.stage === 'dying') { bubble('它连站都站不稳了…'); break }
       S.mood = clamp(S.mood + 28); S.energy = clamp(S.energy - 15)
       S.hunger = clamp(S.hunger - 4); S.thirst = clamp(S.thirst - 6)
       S.stats.play++; S.careScore += 2; S.lastAct.play = Date.now(); bubble('耶！再玩一次！'); break
     }
     case 'sleepToggle': {
-      S.awake = !S.awake
-      bubble(S.awake ? '睡醒啦！' : 'Zzz…'); break
+      if (!S.awake) { S.awake = true; bubble('睡醒啦！'); break }
+      if (S.energy > 95) { bubble('精神得很，睡不着～'); break }
+      S.awake = false; bubble('Zzz…'); break
+    }
+    case 'dose': {
+      if (cdLeft('dose') > 0) { bubble(`药劲还没过（${cdLeft('dose')}s）`); break }
+      if (!isSick()) { bubble('它很健康，不需要吃药'); break }
+      S.sickSince = 0; S.dirtySince = 0 // 重置病计时(治标: 脏没除, 2h 后会再病)
+      S.mood = clamp(S.mood - 20); S.energy = clamp(S.energy - 15) // 苦药的代价
+      S.stats.dose++; S.lastAct.dose = Date.now()
+      log(`${S.name} 皱着眉把药吃了…病好啦（记得洗澡除根）`); bubble('苦…但病好了…', 10); break
     }
     case 'touch': {
       if (cdLeft('touch') > 0) { bubble('（被摸得毛都乱了…）'); break }
@@ -377,15 +429,16 @@ function maybeTheater() {
 
 // ---------- 定向乞讨(低数值时优先于小剧场) ----------
 const BEGS = [
+  ['__sick', 0, ['（蔫蔫地看着药罐的方向…）', '（打了个喷嚏，晕乎乎的…）']], // 生病最优先
   ['thirst', 40, ['（推了推空空的水碗…）', '（眼巴巴地望着水碗的方向）']],
   ['hunger', 40, ['（盯着你手里的零食…）', '（肚子咕噜咕噜地叫）']],
   ['mood', 40, ['（把玩具叼到你面前…）', '（蔫蔫地趴着，提不起劲）']],
   ['clean', 40, ['（身上痒痒，蹭了蹭墙角…）', '（毛色暗淡，眼巴巴盼着洗澡）']],
 ]
-function maybeBeg() { // 数值越低越优先(口渴>饱腹>心情>洁净), 10 分钟节流
+function maybeBeg() { // 生病>口渴>饱腹>心情>洁净, 10 分钟节流
   if (S.stage !== 'alive') return false
   if (Date.now() - (S.lastBegAt || 0) < 10 * 60000) return false
-  const want = BEGS.find(([k, low]) => S[k] < low)
+  const want = BEGS.find(([k, low]) => (k === '__sick' ? isSick() : S[k] < low))
   if (!want) return false
   S.lastBegAt = Date.now()
   bubble(want[2][Math.floor(Math.random() * want[2].length)], 10)
@@ -395,6 +448,7 @@ function maybeBeg() { // 数值越低越优先(口渴>饱腹>心情>洁净), 10 
 // ---------- 渲染 ----------
 let frame = 0
 let PAGE = 'main' // main | stats (Tab 切换)
+let wanderOff = 0, wanderTarget = 0, wanderNext = 0, wanderFace = 1 // 自主漫游(纯视觉, 不入存档)
 let FX = null     // 动作特效 {kind, start:frame}
 let TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.columns) || 78, 120))
 if (process.stdout.on) process.stdout.on('resize', () => {
@@ -438,11 +492,11 @@ function bar(label, v, color, extra = '') {
   return `${label} ${bg(...color)}${' '.repeat(filled)}${R}${dim}${'·'.repeat(w - filled)}${R} ${String(Math.round(v)).padStart(3)}${extra}`
 }
 const hotButtons = [] // {row, c0, c1, kind}
-const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t' }
+const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t' }
 function buttonBar(row) {
   let defs = [
     ['f', '喂食', 'feed'], ['1', '零食', 'snack'], ['w', '喂水', 'water'], ['b', '洗澡', 'bath'],
-    ['p', '玩耍', 'play'], ['s', '睡觉', 'sleepToggle'], ['t', '摸摸', 'touch'], ['n', '起名', 'rename'],
+    ['p', '玩耍', 'play'], ['s', '睡觉', 'sleepToggle'], ['t', '摸摸', 'touch'], ['d', '吃药', 'dose'], ['n', '起名', 'rename'],
     ['r', '重置', 'reset'], ['q', '退出', 'quit'],
   ]
   if (S.named) defs = defs.filter(d => d[2] !== 'rename') // 起名一次性, 定名后收起
@@ -471,6 +525,7 @@ const FX_DEF = {
   bath:  { color: [220, 240, 255], chars: ['○', '°', '◦'], from: 1, dir: -1 },   // 泡泡上升
   play:  { color: [180, 140, 255], chars: ['!', '♦', '↑'], from: -2, dir: 1 },   // 跳动符号
   touch: { color: [255, 150, 170], chars: ['♥', '♡', '♥'], from: -4, dir: 1 },   // 爱心冒出
+  dose:  { color: [120, 230, 140], chars: ['✚', '●', '✚'], from: -3, dir: 1 },   // 药丸绿十字落下
 }
 function setFx(kind) { if (FX_DEF[kind]) FX = { kind, start: frame } }
 function renderFx(artTop, artLeft, artW) {
@@ -513,12 +568,17 @@ function render() {
     const stage = grownStage()
     const frames = artSet[stage]
     const sleeping = isSleepTime() || !S.awake // 与衰减侧判定一致
-    const base = sleeping ? frames[0] : frames[frame % frames.length]
-    art = moodOverlay(base)
+  const base = sleeping ? frames[0] : frames[frame % frames.length]
+  art = moodOverlay(wanderFace < 0 ? base.map(r => [...r].reverse().join('')) : base) // 漫游朝向镜像
+  // 漫游步进: 逐列滑向目标点
+  if (S.awake && S.stage === 'alive' && wanderOff !== wanderTarget) {
+    wanderFace = wanderTarget < wanderOff ? -1 : 1
+    wanderOff += wanderFace
+  }
   }
   const fat = S.weight > fatLine() ? 2 : 0
   const eggShake = S.stage === 'egg' && hatchProgress() >= 0.75 && frame % 2 ? 1 : 0 // 临孵摇晃
-  const artTop = 4, artLeft = Math.floor((TERM_W - (art[0].length + fat * 2)) / 2) + eggShake
+  const artTop = 4, artLeft = Math.max(4, Math.floor((TERM_W - (art[0].length + fat * 2)) / 2) + eggShake + wanderOff + (S.stage === 'dying' ? (frame % 2 ? 1 : -1) : 0))
   drawArt(art, artTop, artLeft, fat)
   // 状态符号
   const statusIcons = []
@@ -527,6 +587,10 @@ function render() {
   if (!S.awake) statusIcons.push(fg(170, 170, 255) + 'Zzz' + R)
   else if (S.mood < 30) statusIcons.push(fg(130, 130, 130) + '不开心' + R)
   else if (S.mood > 80) statusIcons.push(fg(255, 200, 80) + '开心' + R)
+  // 死线倒计时角标(红色): 看到就知道还有多久救
+  for (const t of deathTimers()) {
+    if (t.left > 0) statusIcons.push(bold + fg(255, 60, 60) + `${t.icon}${fmtDur(t.left)}` + R)
+  }
   at(artTop + art.length + 1, Math.floor(TERM_W / 2) - 10, statusIcons.join(' '))
   // 气泡
   if (S.bubble && Date.now() < S.bubble.until) {
@@ -576,7 +640,8 @@ function renderGrave() {
   const mournLeft = Math.max(0, MOURN_MS - (Date.now() - S.diedAt))
   drawArt(GRAVE, 5, Math.floor((TERM_W - 9) / 2))
   at(13, 24, bold + fg(200, 200, 210) + `${S.name} 在这里长眠` + R)
-  at(14, 26, dim + `死因: ${S.deathCause} · 共存活 ${livedDays(S).toFixed(1)} 天` + R)
+  const dIcon = DEATHS.find(x => x.cause === S.deathCause)
+  at(14, 26, dim + `死因: ${dIcon ? dIcon.icon + ' ' + dIcon.name : S.deathCause} · 共存活 ${livedDays(S).toFixed(1)} 天` + R)
   if (mournLeft > 0) at(16, 24, fg(150, 150, 160) + `守灵中… ${fmtDur(mournLeft)} 后可重新孵蛋（按 f）` + R)
   else at(16, 22, fg(255, 200, 120) + '按 f 或点击 [f 喂食] 迎接下一代' + R)
   buttonBar(23)
@@ -590,7 +655,7 @@ function renderStats() {
   hotButtons.push({ row: 1, c0: TERM_W - back.length - 1, c1: TERM_W - 3, kind: 'toggleStats' })
   // 生涯动作
   at(3, 3, dim + '— 生涯动作 —' + R)
-  const acts = [['feed', '喂食'], ['snack', '零食'], ['water', '喂水'], ['bath', '洗澡'], ['play', '玩耍'], ['touch', '摸摸']]
+  const acts = [['feed', '喂食'], ['snack', '零食'], ['water', '喂水'], ['bath', '洗澡'], ['play', '玩耍'], ['touch', '摸摸'], ['dose', '吃药']]
   acts.forEach(([k, label], i) => at(4 + Math.floor(i / 3), 3 + (i % 3) * 26, `${label} ${bold}${S.stats[k] || 0}${R}`))
   // 成就(含进度)
   at(7, 3, dim + `— 成就 ${S.achievements.length}/${ACHIEVEMENTS.length} —` + R)
@@ -602,11 +667,22 @@ function renderStats() {
   // 纪念墙
   let r = 8 + ACHIEVEMENTS.length + 1
   at(r, 3, dim + `— 纪念墙 ${S.memorial.length} —` + R)
-  S.memorial.slice(-3).reverse().forEach((m, i) => at(r + 1 + i, 3, `${m.name} · ${SPECIES[m.species]?.label || m.species} · 存活${m.days}天 · ${m.cause}`))
+  S.memorial.slice(-3).reverse().forEach((m, i) => {
+    const md = DEATHS.find(x => x.cause === m.cause)
+    at(r + 1 + i, 3, `${m.name} · ${SPECIES[m.species]?.label || m.species} · 存活${m.days}天 · ${md ? md.icon + md.name : m.cause}`)
+  })
   // 日志(最新在上, 截到 22 行)
   let r2 = r + 1 + Math.min(3, S.memorial.length) + 1
   at(r2, 3, dim + '— 日志 —' + R)
   S.log.slice().reverse().forEach((e, i) => { if (r2 + 1 + i <= 22) at(r2 + 1 + i, 3, dim + e.text.slice(0, TERM_W - 6) + R) })
+  // 死法图鉴(Dead Cells 式收集): 没见过的显示 ???
+  const dexCol = 44
+  at(3, dexCol, dim + `— 死法图鉴 ${DEATHS.filter(d => S.memorial.some(m => m.cause === d.cause)).length}/${DEATHS.length} —` + R)
+  DEATHS.forEach((d, i) => {
+    const n = S.memorial.filter(m => m.cause === d.cause).length
+    const got = n > 0
+    at(4 + i, dexCol, (got ? (d.cause === '寿终正寝' ? fg(255, 220, 120) + bold : fg(220, 120, 120)) : dim) + `${got ? d.icon + ' ' + d.name + (n > 1 ? ` ×${n}` : '') : '???'}` + R)
+  })
 }
 function fmtDur(ms) {
   const m = Math.round(ms / 60000)
@@ -662,6 +738,7 @@ function setupInput(onAction, onQuit, onRename) {
     else if (k === 'p') onAction('play')
     else if (k === 's') onAction('sleepToggle')
     else if (k === 't') onAction('touch')
+    else if (k === 'd') onAction('dose')
   }
 }
 function hitTest(row, col) {
@@ -757,6 +834,18 @@ setInterval(() => {
     applyDecay(SCALE / 3600)
     if (S.clean < 15) { if (!S.dirtySince) S.dirtySince = Date.now() }
     else S.dirtySince = 0
+    // 自主漫游: 每 8-20s(游戏时)换个目标点
+    if (S.stage === 'alive' && S.awake && Date.now() > wanderNext) {
+      wanderTarget = Math.round((Math.random() * 2 - 1) * 6)
+      if (wanderTarget === wanderOff) wanderTarget = wanderOff + (Math.random() < 0.5 ? -2 : 2)
+      wanderNext = Date.now() + (8 + Math.random() * 12) * 1000 / SCALE
+    }
+    if (S.stage === 'alive') { // 异常死线计时维护(离线冻结, 弥留期暂停)
+      S.heartSince = S.mood <= 0 ? (S.heartSince || Date.now()) : 0
+      S.sickSince = isSick() ? (S.sickSince || Date.now()) : 0
+      S.obeseSince = S.weight >= fatLine() * 1.6 ? (S.obeseSince || Date.now()) : 0
+      S.exhaustSince = (S.awake && S.energy <= 0) ? (S.exhaustSince || Date.now()) : 0
+    }
       recheckStage(0); if (!maybeBeg()) maybeTheater(); checkAchievements()
   } else if (S.stage === 'egg') {
     if (Date.now() - S.bornAt >= HATCH_MS) hatch()
