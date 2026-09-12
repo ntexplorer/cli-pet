@@ -159,7 +159,7 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 
 - **Where is my save?** `state.json` beside `pet.mjs`. It survives reinstalls; don't commit it.
 - **Can I run two instances?** No — a PID lock refuses the second one to protect the save.
-- **Pane too narrow?** Layout adapts automatically; force a width with `PET_WIDTH=60 pet`.
+- **Pane too narrow?** The layout adapts: below 68 columns the button bar switches to one-character labels (full key reference in `?`); below 58 cols × 25 rows it shows a friendly notice and recovers automatically once you enlarge the window. Force a width with `PET_WIDTH=60 pet`.
 - **Does it phone home?** Never. No network, no telemetry.
 - **English UI?** Not yet — in-game text is Chinese for now; it's on the roadmap ([#1](https://github.com/ntexplorer/cli-pet/issues/1)) and help is welcome.
 

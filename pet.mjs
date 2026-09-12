@@ -558,10 +558,13 @@ let frame = 0
 let PAGE = 'main' // main | stats (Tab) | help (?)
 let wanderOff = 0, wanderTarget = 0, wanderNext = 0, wanderFace = 1 // 自主漫游(纯视觉, 不入存档)
 let FX = null     // 动作特效 {kind, start:frame}
-let TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.columns) || 78, 120))
-if (process.stdout.on) process.stdout.on('resize', () => {
-  TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.columns) || TERM_W, 120))
-})
+const rawCols = () => +(process.env.PET_WIDTH || process.stdout.columns) || 78 // 未钳位列数(小窗判定用)
+const rawRows = () => +(process.env.PET_HEIGHT || process.stdout.rows) || 9999 // 未钳位行数(非 TTY 不触发小窗)
+const fitW = () => Math.max(58, Math.min(rawCols(), 120))
+let TERM_W = fitW(), TERM_H = rawRows()
+function refreshTerm() { TERM_W = fitW(); TERM_H = rawRows() } // resize/逐帧兜底: 少数终端字号缩放不发 resize 事件
+if (process.stdout.on) process.stdout.on('resize', refreshTerm)
+const tooSmall = () => rawCols() < 58 || rawRows() < 25 // 最小支持 58 列 × 25 行, 过小整屏提示(游戏逻辑照常)
 function dispW(s) { let w = 0; for (const ch of s) { const c = ch.charCodeAt(0); w += (c < 0x80 || c === 0xb7) ? 1 : 2 } return w } // U+00B7(·) 终端实际 1 cell
 function sliceW(s, budget) { let w = 0, out = ''; for (const ch of s) { const c = ch.charCodeAt(0); w += (c < 0x80 || c === 0xb7) ? 1 : 2; if (w > budget) break; out += ch } return out }
 function at(row, col, text) { if (col > TERM_W - 1 || row > 24 || row < 1) return; process.stdout.write(`${ESC}${row};${col}H${text}`) } // 越界保护: 防换行炸屏
@@ -628,6 +631,11 @@ function buttonBar(row) {
     ['r', '重置', 'reset'], ['q', '退出', 'quit'],
   ]
   if (S.named) defs = defs.filter(d => d[2] !== 'rename') // 起名一次性, 定名后收起
+  // 窄档(<68 列, 约 30% 分屏)单字标签: 58 列下 5 个/行 → 13 键 3 行, 不再挤占日志行; 全称见 ? 帮助
+  if (TERM_W < 68) {
+    const short = { feed: '饭', snack: '食', water: '水', bath: '澡', play: '玩', sleepToggle: '睡', touch: '摸', dose: '药', rps: '拳', chat: '聊', rename: '名', reset: '重', quit: '退' }
+    defs = defs.map(([k, , kind]) => [k, short[kind], kind])
+  }
   const gap = TERM_W < 66 ? 0 : 1
   // 固定槽位(基宽+冷却后缀余量): 倒计时逐秒变化不挤动后续按钮
   const btnW = (k, label) => dispW(`[${k} ${label}]`) + 5 + gap
@@ -658,6 +666,7 @@ function buttonBar(row) {
       col += btnW(k, label)
     })
   })
+  return top
 }
 // 动作特效(FX): 每动作 2s 粒子动画, frame 驱动, 与气泡并存
 const FX_DEF = {
@@ -686,9 +695,19 @@ function renderFx(artTop, artLeft, artW) {
 }
 
 function render() {
+  refreshTerm() // 逐帧兜底: 覆盖不发 resize 事件的终端
   process.stdout.write(ansi.clear + ansi.home)
-  renderStars()
   hotButtons.length = 0 // 统一在入口清空热区, buttonBar/各子渲染只注册
+  if (tooSmall()) { // 文案按真实列数截断(at() 的钳位保护在过窄终端失效; 样式外置, sliceW 只截可见文本)
+    const put = (row, style, text) => at(row, 2, style + sliceW(text, Math.max(1, rawCols() - 2)) + R)
+    put(2, bold + fg(255, 120, 120), '窗口太小, 无法正常显示')
+    put(4, dim, `需要至少 58 列 × 25 行 (当前 ${rawCols()} 列 × ${rawRows()} 行)`)
+    put(6, dim, '拉大窗口后自动恢复; 它仍在这里等你')
+    at(8, 3, bg(60, 70, 100) + fg(230, 230, 240) + bold + sliceW('[q 退出]', Math.max(1, rawCols() - 3)) + R)
+    hotButtons.push({ row: 8, c0: 3, c1: 10, kind: 'quit' })
+    return
+  }
+  renderStars()
 
   if (S.stage === 'eggSelect') { renderEggSelect(); return }
   if (S.stage === 'dead') { renderGrave(); return }
@@ -770,10 +789,10 @@ function render() {
   const helpCol = Math.min(TERM_W - dispW(helpTxt), 3 + dispW(badgeTxt) + 4)
   at(rowB + 3, helpCol, dim + helpTxt + R)
   hotButtons.push({ row: rowB + 3, c0: helpCol, c1: helpCol + dispW(helpTxt) - 1, kind: 'toggleHelp' })
+  const btnTop = buttonBar(22)
+  // 窄屏(<68 列)按钮占 4 行会顶到 row 21, 与日志行互踩 → 此时日志让位不画
   const lastLog = S.log[S.log.length - 1]
-  if (lastLog) at(rowB + 4, 3, dim + sliceW(lastLog.text, TERM_W - 4) + R)
-
-  buttonBar(22)
+  if (lastLog && btnTop >= rowB + 5) at(rowB + 4, 3, dim + sliceW(lastLog.text, TERM_W - 4) + R)
   hotButtons.push({ row: rowB + 3, c0: 3, c1: 12, kind: 'toggleStats' }) // 角标热区
 }
 function renderRps() {
