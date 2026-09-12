@@ -144,9 +144,20 @@ function moodOverlay(art) {
 function hatchProgress() { return Math.max(0, Math.min(1, (Date.now() - S.bornAt) / HATCH_MS)) }
 
 // ---------- 状态 ----------
+// 存档迁移链: 老存档按级逐步升到当前版本, 玩家零感知; 新增字段由 defaultState 合并兜底
+const SAVE_VERSION = 2
+const MIGRATIONS = {
+  // 1 → 2: v0.2.0 建链, 无结构变更
+}
+function migrateSave(d) {
+  const v = d.version || 1
+  for (let i = v; i < SAVE_VERSION; i++) if (MIGRATIONS[i]) MIGRATIONS[i](d)
+  d.version = SAVE_VERSION
+  return d
+}
 function defaultState() {
   return {
-    version: 1,
+    version: SAVE_VERSION,
     stage: 'eggSelect',        // eggSelect / egg / alive / dying / dead
     species: null, name: null,
     bornAt: 0, lastSeen: Date.now(), hatchedAt: 0,
@@ -160,7 +171,7 @@ function defaultState() {
     achievements: [],
     memorial: [],              // [{name,species,days,cause,generation}]
     log: [],                   // 最近事件 [{t,text}]
-    lastAct: {}, named: false, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, // bubble {text, until}
+    lastAct: {}, named: false, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, helpHinted: false, // bubble {text, until}; helpHinted 孵化后 ? 提示只播一次
     touchLog: [],              // 摸摸时间戳(滚动1h窗口, 防白嫖心情)
     rps: null,                 // 猜拳进行中 {me, pet, round}
   }
@@ -170,7 +181,7 @@ function save() { S.lastSeen = Date.now(); writeFileSync(STATE_FILE, JSON.string
 function load() {
   try {
     const d = JSON.parse(readFileSync(STATE_FILE, 'utf8'))
-    S = Object.assign(defaultState(), d)
+    S = Object.assign(defaultState(), migrateSave(d))
     S.stats = Object.assign(defaultState().stats, d.stats || {})   // 深合并: 老存档升级不丢新字段(dose 等)
     S.lastAct = Object.assign({}, d.lastAct || {})
     // state 损坏防御: 有生命阶段却无有效物种 → 回到选蛋
@@ -305,7 +316,7 @@ function recheckStage(dt = 0) {
   }
 }
 function die(cause) {
-  S.stage = 'dead'; S.diedAt = Date.now(); S.deathCause = cause
+  S.stage = 'dead'; S.diedAt = Date.now(); S.deathCause = cause; S.rps = null
   const d = DEATHS.find(x => x.cause === cause)
   S.memorial.push({ name: S.name, species: S.species, days: +livedDays(S).toFixed(1), cause, generation: S.generation })
   log(`${S.name} 永远地离开了…${d ? d.icon + d.name : `（${cause}）`}${cause === '寿终正寝' ? '——圆满的一生' : ''}`); bell(5)
@@ -334,6 +345,7 @@ function act(kind) {
   }
   const cdLeft = k => CD[k] ? Math.ceil((CD[k] - (Date.now() - (S.lastAct[k] || 0))) / 1000) : 0
   const sick = isSick()
+  let ok = false // 动作实际生效才播特效(拒绝时不播, 免得"还没吃"却掉食物)
   switch (kind) {
     case 'feed': {
       if (cdLeft('feed') > 0) { bubble(`还想吃？消化一下（${cdLeft('feed')}s）`); break }
@@ -342,21 +354,21 @@ function act(kind) {
       const base = isElder() ? 22 : 32 // 暮年胃口变小
       const gain = sick ? Math.round(base / 2) : base
       S.hunger = clamp(S.hunger + gain); S.weight += 0.15; S.stats.feed++
-      S.careScore++; S.lastAct.feed = Date.now()
+      S.careScore++; S.lastAct.feed = Date.now(); ok = true
       bubble(sick ? '没什么胃口…还是吃了' : '嗷呜嗷呜，好吃！'); break
     }
     case 'snack': {
       if (cdLeft('snack') > 0) { bubble(`零食刚吃过（${cdLeft('snack')}s）`); break }
       if (S.hunger > 85) { bubble('真的一口都塞不下了~'); break } // 零食诱惑力 > 正餐: 拒绝线更高
       S.hunger = clamp(S.hunger + 8); S.mood = clamp(S.mood + (sick ? 6 : 12)); S.weight += 0.25; S.stats.snack++
-      S.careScore++; S.lastAct.snack = Date.now()
+      S.careScore++; S.lastAct.snack = Date.now(); ok = true
       bubble('零食！开心转圈！'); break
     }
     case 'water': {
       if (cdLeft('water') > 0) { bubble(`喝太快会呛到（${cdLeft('water')}s）`); break }
       if (S.thirst > 65) { bubble('现在不渴~'); break }
       S.thirst = clamp(S.thirst + 35); S.stats.water++; S.careScore++
-      S.lastAct.water = Date.now(); bubble('咕咚咕咚~'); break
+      S.lastAct.water = Date.now(); ok = true; bubble('咕咚咕咚~'); break
     }
     case 'bath': {
       if (cdLeft('bath') > 0) { bubble(`刚洗过澡，毛还没干（${cdLeft('bath')}s）`); break }
@@ -364,7 +376,7 @@ function act(kind) {
       S.clean = clamp(S.clean + 45)
       if (isSick()) { log(`${S.name} 洗掉了一身病气，痊愈了！`); bubble('洗完澡，病好啦！') }
       else bubble('泡泡好舒服~')
-      S.dirtySince = 0; S.stats.bath++; S.careScore++; S.lastAct.bath = Date.now(); break
+      S.dirtySince = 0; S.stats.bath++; S.careScore++; S.lastAct.bath = Date.now(); ok = true; break
     }
     case 'play': {
       if (cdLeft('play') > 0) { bubble(`玩累了歇会儿（${cdLeft('play')}s）`); break }
@@ -376,7 +388,7 @@ function act(kind) {
       S.mood = clamp(S.mood + (isElder() ? 20 : 28)); S.energy = clamp(S.energy - (isElder() ? 22 : 15)) // 暮年玩一会就喘
       S.hunger = clamp(S.hunger - 4); S.thirst = clamp(S.thirst - 6)
       S.clean = clamp(S.clean - 5) // 玩得一身泥
-      S.stats.play++; S.careScore += 2; S.lastAct.play = Date.now(); bubble('耶！再玩一次！'); break
+      S.stats.play++; S.careScore += 2; S.lastAct.play = Date.now(); ok = true; bubble('耶！再玩一次！'); break
     }
     case 'sleepToggle': {
       if (!S.awake) { S.awake = true; bubble('睡醒啦！'); break }
@@ -388,7 +400,7 @@ function act(kind) {
       if (!isSick()) { bubble('它很健康，不需要吃药'); break }
       S.sickSince = 0; S.dirtySince = 0 // 重置病计时(治标: 脏没除, 2h 后会再病)
       S.mood = clamp(S.mood - 20); S.energy = clamp(S.energy - 15) // 苦药的代价
-      S.stats.dose++; S.lastAct.dose = Date.now()
+      S.stats.dose++; S.lastAct.dose = Date.now(); ok = true
       log(`${S.name} 皱着眉把药吃了…病好啦（记得洗澡除根）`); bubble('苦…但病好了…', 10); break
     }
     case 'touch': {
@@ -401,11 +413,11 @@ function act(kind) {
       if (S.touchLog.length >= quota) { S.mood = clamp(S.mood - 3); bubble('被摸烦了，甩甩尾巴不理你'); break }
       S.touchLog.push(Date.now())
       S.mood = clamp(S.mood + gainT); S.stats.touch++
-      S.careScore++; bubble('呼噜呼噜…最喜欢你了'); break
+      S.careScore++; ok = true; bubble('呼噜呼噜…最喜欢你了'); break
     }
   }
   S.mood = Math.min(S.mood, moodCap())
-  setFx(kind) // 动作特效(FX_DEF 无定义的动作自动跳过)
+  if (ok) setFx(kind) // 动作特效(FX_DEF 无定义的动作自动跳过)
   checkAchievements(); recheckStage(); save()
 }
 // ---------- 猜拳小游戏: 等待期的纯互动, 无需求门槛 ----------
@@ -494,6 +506,7 @@ function newEgg() {
   S = defaultState()
   S.memorial = memorial; S.generation = gen + 1; S.stage = 'eggSelect'
   S.achievements = ach; S.stats = stats // 成就与动作计数为驯主生涯制, 跨代保留
+  PAGE = 'main'
   checkAchievements()
   save()
 }
@@ -542,15 +555,15 @@ function maybeBeg() { // 生病>口渴>饱腹>心情>洁净, 10 分钟节流
 
 // ---------- 渲染 ----------
 let frame = 0
-let PAGE = 'main' // main | stats (Tab 切换)
+let PAGE = 'main' // main | stats (Tab) | help (?)
 let wanderOff = 0, wanderTarget = 0, wanderNext = 0, wanderFace = 1 // 自主漫游(纯视觉, 不入存档)
 let FX = null     // 动作特效 {kind, start:frame}
 let TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.columns) || 78, 120))
 if (process.stdout.on) process.stdout.on('resize', () => {
   TERM_W = Math.max(58, Math.min(+(process.env.PET_WIDTH || process.stdout.columns) || TERM_W, 120))
 })
-function dispW(s) { let w = 0; for (const ch of s) w += ch.charCodeAt(0) < 0x80 ? 1 : 2; return w }
-function sliceW(s, budget) { let w = 0, out = ''; for (const ch of s) { w += ch.charCodeAt(0) < 0x80 ? 1 : 2; if (w > budget) break; out += ch } return out }
+function dispW(s) { let w = 0; for (const ch of s) { const c = ch.charCodeAt(0); w += (c < 0x80 || c === 0xb7) ? 1 : 2 } return w } // U+00B7(·) 终端实际 1 cell
+function sliceW(s, budget) { let w = 0, out = ''; for (const ch of s) { const c = ch.charCodeAt(0); w += (c < 0x80 || c === 0xb7) ? 1 : 2; if (w > budget) break; out += ch } return out }
 function at(row, col, text) { if (col > TERM_W - 1 || row > 24 || row < 1) return; process.stdout.write(`${ESC}${row};${col}H${text}`) } // 越界保护: 防换行炸屏
 function renderStars() {
   const h = new Date().getHours()
@@ -561,12 +574,34 @@ function renderStars() {
     }
   }
 }
-function drawArt(rows, top, left, padCols = 0) {
+function fatPlan(frames) { // 胖补边计划: 跨动画帧取交集(主体资格 ∩ 最小边距), 帧间/镜像稳定不闪烁
+  const PAD = 2
+  const run = line => { let b = 0, c = 0; for (const ch of line) { c = ch === '.' ? 0 : c + 1; if (c > b) b = c } return b }
+  const runs = frames.map(fr => fr.map(run))
+  const gate = Math.max(...runs.flat()) * 0.55 // 只补主体行, 角/翅/尾等窄段行不动, 免成矩形
+  return frames[0].map((_, ri) => {
+    if (!runs.every(fr => fr[ri] >= gate)) return 0
+    return frames.reduce((m, fr) => {
+      const line = fr[ri]; let f = -1, l = -1
+      for (let i = 0; i < line.length; i++) if (line[i] !== '.') { if (f < 0) f = i; l = i }
+      return Math.min(m, PAD, f, line.length - 1 - l)
+    }, PAD)
+  })
+}
+function drawArt(rows, top, left, plan = null) {
   const main = SPECIES[S.species]?.color || [200, 200, 200]
   const desat = (S.stage === 'alive' || S.stage === 'dying') ? Math.max(isElder() ? 0.35 : 0, S.mood < 30 ? 0.5 : S.weight < thinLine() ? 0.2 : 0) : 0
   const mix = c => c.map(v => Math.round(v + (128 - v) * desat))
   for (let ri = 0; ri < rows.length; ri++) {
-    const line = rows[ri]
+    let line = rows[ri]
+    // 胖: 按计划把边缘像素色向两侧复制, 吃掉透明边距(总宽不变 → 肚鼓头细的自然轮廓)
+    if (plan && plan[ri] > 0) {
+      const p = plan[ri]
+      let f = -1, l = -1
+      for (let ci = 0; ci < line.length; ci++) if (line[ci] !== '.') { if (f < 0) f = ci; l = ci }
+      const pL = Math.min(p, f), pR = Math.min(p, line.length - 1 - l)
+      line = line.slice(0, f - pL) + line[f].repeat(pL) + line.slice(f, l + 1) + line[l].repeat(pR) + line.slice(l + 1 + pR)
+    }
     let out = ''
     for (let ci = 0; ci < line.length; ci++) {
       const ch = line[ci]
@@ -576,11 +611,6 @@ function drawArt(rows, top, left, padCols = 0) {
         out += c ? bg(...mix(c)) + ' ' + R : (bg(...mix(main)) + ' ' + R)
       }
     }
-    // 胖: 两侧补主色列
-    if (padCols > 0) {
-      const pad = bg(...mix(main)) + ' '.repeat(padCols) + R
-      out = pad + out + pad
-    }
     at(top + ri, left, out + ansi.clrEol)
   }
 }
@@ -589,7 +619,7 @@ function bar(label, v, color, extra = '') {
   return `${label} ${bg(...color)}${' '.repeat(filled)}${R}${dim}${'·'.repeat(w - filled)}${R} ${String(Math.round(v)).padStart(3)}${extra}`
 }
 const hotButtons = [] // {row, c0, c1, kind}
-const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t', rps: 'g', rps1: '1', rps2: '2', rps3: '3', chat: 'c' }
+const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t', toggleHelp: '?', rps: 'g', rps1: '1', rps2: '2', rps3: '3', chat: 'c' }
 function buttonBar(row) {
   let defs = [
     ['f', '喂食', 'feed'], ['1', '零食', 'snack'], ['w', '喂水', 'water'], ['b', '洗澡', 'bath'],
@@ -598,8 +628,9 @@ function buttonBar(row) {
     ['r', '重置', 'reset'], ['q', '退出', 'quit'],
   ]
   if (S.named) defs = defs.filter(d => d[2] !== 'rename') // 起名一次性, 定名后收起
-  const gap = 1
-  const btnW = (k, label) => dispW(`[${k} ${label}]`) + 3 + gap // +3 冷却后缀余量
+  const gap = TERM_W < 66 ? 0 : 1
+  // 固定槽位(基宽+冷却后缀余量): 倒计时逐秒变化不挤动后续按钮
+  const btnW = (k, label) => dispW(`[${k} ${label}]`) + 5 + gap
   // 按显示宽度贪心分行(任意按钮数/任意宽度自适应)
   const chunks = []
   for (let i = 0; i < defs.length;) {
@@ -611,18 +642,20 @@ function buttonBar(row) {
     }
     chunks.push(defs.slice(i, i + n)); i += n
   }
+  // 多行时整体上移: 第 25 行会被 at() 越界保护丢弃(窄屏 13 键曾致 [q 退出] 不可见)
+  const top = Math.min(row, 25 - chunks.length)
   chunks.forEach((chunk, ci) => {
     let col = 3
     chunk.forEach(([k, label, kind]) => {
       let text = `[${k} ${label}]`
       let style = bg(60, 70, 100) + fg(230, 230, 240) + bold
-      if (CD[kind]) { // 冷却中: 置灰+倒计时
+      if (CD[kind]) { // 冷却中: 置灰+倒计时(分钟压缩显示, 后缀不超槽位余量)
         const left = Math.ceil((CD[kind] - (Date.now() - (S.lastAct[kind] || 0))) / 1000)
-        if (left > 0) { text = `[${k} ${label}·${left}s]`; style = dim + fg(110, 110, 120) }
+        if (left > 0) { text = `[${k} ${label}·${left >= 60 ? Math.ceil(left / 60) + 'm' : left + 's'}]`; style = dim + fg(110, 110, 120) }
       }
-      at(row + ci, col, style + text + R)
-      hotButtons.push({ row: row + ci, c0: col, c1: col + dispW(text) - 1, kind })
-      col += dispW(text) + gap
+      at(top + ci, col, style + text + R)
+      hotButtons.push({ row: top + ci, c0: col, c1: col + btnW(k, label) - gap - 1, kind })
+      col += btnW(k, label)
     })
   })
 }
@@ -661,10 +694,14 @@ function render() {
   if (S.stage === 'dead') { renderGrave(); return }
   if (S.rps && S.stage === 'alive') { renderRps(); return }
   if (PAGE === 'stats') { renderStats(); return }
+  if (PAGE === 'help') { renderHelp(); return }
 
-  // 头部
+  // 头部(名字优先, 余下按显示宽度截断: 防长名窄屏压住右侧天色标签)
   const stageZh = { egg: '蛋·孵化中', alive: { baby: '幼年期', adult: '成年期', elder: '暮年期' }[grownStage()], dying: '!! 弥留 !!' }[S.stage]
-  at(1, 2, bold + fg(255, 255, 255) + `${S.name || '?'}${R}${dim}  ${SPECIES[S.species]?.label || ''} · ${stageZh} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天${R}`)
+  const nm = S.name || '?'
+  const rightCol = TERM_W - 14 - (SCALE > 1 ? 7 : 0)
+  const info = `  ${SPECIES[S.species]?.label || ''} · ${stageZh} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天`
+  at(1, 2, bold + fg(255, 255, 255) + sliceW(nm, rightCol - 4) + R + dim + sliceW(info, rightCol - 4 - dispW(nm)) + R)
   const h = new Date().getHours()
   const dayTxt = ({ night: '夜 · 静悄悄', dawn: '晨 · 微光', day: '昼 · 明亮', dusk: '暮 · 橙红' }[h >= 23 || h < 5 ? 'night' : h < 8 ? 'dawn' : h < 17 ? 'day' : 'dusk'])
   const tag = SCALE > 1 ? fg(255, 220, 90) + `⏩x${SCALE} ` + R + dim : ''
@@ -672,7 +709,7 @@ function render() {
 
   // 宠物
   const artSet = ART[S.species]
-  let art
+  let art, padPlan = null
   if (S.stage === 'egg') art = eggArt(S.species, hatchProgress())
   else {
     const stage = grownStage()
@@ -685,11 +722,11 @@ function render() {
     wanderFace = wanderTarget < wanderOff ? -1 : 1
     wanderOff += wanderFace
   }
+  if (S.weight > fatLine()) padPlan = fatPlan(frames) // 胖: 按原始帧集算稳定补边计划(镜像安全: 两侧等量)
   }
-  const fat = S.weight > fatLine() ? 2 : 0
   const eggShake = S.stage === 'egg' && hatchProgress() >= 0.75 && frame % 2 ? 1 : 0 // 临孵摇晃
-  const artTop = 4, artLeft = Math.max(4, Math.floor((TERM_W - (art[0].length + fat * 2)) / 2) + eggShake + wanderOff + (S.stage === 'dying' ? (frame % 2 ? 1 : -1) : 0))
-  drawArt(art, artTop, artLeft, fat)
+  const artTop = 4, artLeft = Math.max(4, Math.floor((TERM_W - art[0].length) / 2) + eggShake + wanderOff + (S.stage === 'dying' ? (frame % 2 ? 1 : -1) : 0)) // 胖补边在原宽度内完成, 立绘不横跳
+  drawArt(art, artTop, artLeft, padPlan)
   // 状态符号
   const statusIcons = []
   if (S.stage === 'dying') statusIcons.push(bold + fg(255, 60, 60) + '!! 危急 !!' + R)
@@ -702,11 +739,13 @@ function render() {
     if (t.left > 0) statusIcons.push(bold + fg(255, 60, 60) + `${t.icon}${fmtDur(t.left)}` + R)
   }
   if (isElder()) statusIcons.push(fg(255, 220, 120) + `⭐${Math.max(0, LIFESPAN_DAYS - livedDays(S)).toFixed(1)}天` + R) // 寿终倒计时(金色·荣誉)
-  at(artTop + art.length + 1, Math.floor(TERM_W / 2) - 10, statusIcons.join(' '))
+  const iconsTxt = statusIcons.join(' ')
+  const iconsW = dispW(iconsTxt.replace(/\x1b\[[\d;]*m/g, '')) // 剥掉色码再量宽
+  at(Math.min(artTop + art.length + 1, 16), Math.max(2, Math.min(Math.floor(TERM_W / 2) - 10, TERM_W - iconsW)), iconsTxt) // 成年立绘较高时图标行避开 rowB=17 数值区
   // 气泡
   if (S.bubble && Date.now() < S.bubble.until) {
     const text = S.bubble.text
-    at(artTop - 1, Math.min(TERM_W - text.length - 4, artLeft + art[0].length + 2), fg(255, 255, 255) + `「${text}」` + R)
+    at(artTop - 1, Math.min(TERM_W - dispW(text) - 4, artLeft + art[0].length + 2), fg(255, 255, 255) + `「${text}」` + R)
   } else S.bubble = null
   renderFx(artTop, artLeft, art[0].length)
 
@@ -723,11 +762,16 @@ function render() {
     at(rowB + 2, 3, bar('精力', S.energy, [180, 180, 120]) + `   体重 ${bold}${wt}${R} ${wtState}`)
   }
 
-  // 成就/纪念收纳为角标(点击或 Tab 进数据面板) + 最新一条日志独占行(不再与数值区接壤)
+  // 成就/纪念收纳为角标(点击或 Tab 进数据面板) + 帮助入口 + 最新一条日志独占行(不再与数值区接壤)
   const gotN = ACHIEVEMENTS.filter(a => S.achievements.includes(a.id)).length
-  at(rowB + 3, 3, dim + `🏆 ${gotN}/${ACHIEVEMENTS.length}   🕊 ${S.memorial.length}` + R)
+  const badgeTxt = `🏆 ${gotN}/${ACHIEVEMENTS.length}   🕊 ${S.memorial.length}`
+  at(rowB + 3, 3, dim + badgeTxt + R)
+  const helpTxt = '[? 说明]'
+  const helpCol = Math.min(TERM_W - dispW(helpTxt), 3 + dispW(badgeTxt) + 4)
+  at(rowB + 3, helpCol, dim + helpTxt + R)
+  hotButtons.push({ row: rowB + 3, c0: helpCol, c1: helpCol + dispW(helpTxt) - 1, kind: 'toggleHelp' })
   const lastLog = S.log[S.log.length - 1]
-  if (lastLog) at(rowB + 4, 3, dim + lastLog.text.slice(0, TERM_W - 5) + R)
+  if (lastLog) at(rowB + 4, 3, dim + sliceW(lastLog.text, TERM_W - 4) + R)
 
   buttonBar(22)
   hotButtons.push({ row: rowB + 3, c0: 3, c1: 12, kind: 'toggleStats' }) // 角标热区
@@ -748,7 +792,7 @@ function renderRps() {
     at(19, col + Math.max(0, (pitch - dispW(txt)) >> 1), bg(60, 70, 100) + fg(230, 230, 240) + bold + txt + R)
     for (let r = 18; r <= 20; r++) hotButtons.push({ row: r, c0: col, c1: col + pitch - 2, kind: 'rps' + (i + 1) })
   })
-  at(22, 3, dim + '出招: 键盘 1/2/3 或点击按钮 · [q 罢手离开(不计输赢)]' + R)
+  at(22, 3, dim + '出招: 键盘 1/2/3 或点击按钮 · [q 罢手离开（不计输赢）]' + R)
   renderStars()
 }
 function renderEggSelect() {
@@ -774,25 +818,27 @@ function renderEggSelect() {
 function renderGrave() {
   const mournLeft = Math.max(0, MOURN_MS - (Date.now() - S.diedAt))
   drawArt(GRAVE, 5, Math.floor((TERM_W - 9) / 2))
-  at(13, 24, bold + fg(200, 200, 210) + `${S.name} 在这里长眠` + R)
+  // 居中且宽度感知: 长名/窄屏不再固定列溢出
+  const center = (row, text, style = '') => at(row, Math.max(1, ((TERM_W - dispW(text)) >> 1) + 1), style + sliceW(text, TERM_W - 2) + R)
+  center(13, `${S.name} 在这里长眠`, bold + fg(200, 200, 210))
   const dIcon = DEATHS.find(x => x.cause === S.deathCause)
-  at(14, 26, dim + `死因: ${dIcon ? dIcon.icon + ' ' + dIcon.name : S.deathCause} · 共存活 ${livedDays(S).toFixed(1)} 天` + R)
-  if (mournLeft > 0) at(16, 24, fg(150, 150, 160) + `守灵中… ${fmtDur(mournLeft)} 后可重新孵蛋（按 f）` + R)
-  else at(16, 22, fg(255, 200, 120) + '按 f 或点击 [f 喂食] 迎接下一代' + R)
+  center(14, `死因: ${dIcon ? dIcon.icon + ' ' + dIcon.name : S.deathCause} · 共存活 ${livedDays(S).toFixed(1)} 天`, dim)
+  if (mournLeft > 0) center(16, `守灵中… ${fmtDur(mournLeft)} 后可重新孵蛋（按 f）`, fg(150, 150, 160))
+  else center(16, '按 f 或点击 [f 喂食] 迎接下一代', fg(255, 200, 120))
   buttonBar(23)
 }
 // 数据面板(Tab): 生涯统计 + 成就进度 + 纪念墙 + 全量日志
 function renderStats() {
   // 显示宽度感知截断(中文 2 cell): 防 60 列窄屏头部撞返回按钮/越界
-  const dSlice = (s, budget) => { let w = 0, out = ''; for (const ch of s) { w += /[\x00-\x7f]/.test(ch) ? 1 : 2; if (w > budget) break; out += ch } return out }
+  const dSlice = (s, budget) => { let w = 0, out = ''; for (const ch of s) { w += /[\x00-\x7f\u00b7]/.test(ch) ? 1 : 2; if (w > budget) break; out += ch } return out }
   const spec = SPECIES[S.species]
   const back = '[Tab 返回主界面]'
-  const backW = [...back].reduce((w, c) => w + (/[\x00-\x7f]/.test(c) ? 1 : 2), 0) // 显示宽度(CJK 2 cell)
+  const backW = [...back].reduce((w, c) => w + (/[\x00-\x7f\u00b7]/.test(c) ? 1 : 2), 0) // 显示宽度(CJK 2 cell)
   const backCol = TERM_W - backW - 1
   const headInfo = `  ${S.name} · ${spec?.label || ''} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天 · ${S.weight.toFixed(1)}kg${SCALE > 1 ? ' · ⏩x' + SCALE : ''}`
   at(1, 2, bold + fg(255, 255, 255) + '📋 数据面板' + R + dim + dSlice(headInfo, backCol - 16) + R)
   at(1, backCol, bg(60, 70, 100) + fg(230, 230, 240) + back + R)
-  hotButtons.push({ row: 1, c0: backCol, c1: backCol + back.length - 1, kind: 'toggleStats' })
+  hotButtons.push({ row: 1, c0: backCol, c1: backCol + backW - 1, kind: 'toggleStats' })
   // 两栏布局: 左栏动作+成就, 右栏图鉴+纪念墙, 日志通栏底部; 窄屏(<66)单列+压缩摘要
   const twoCol = TERM_W >= 66
   // 生涯动作(2列×4行, 最长~40列, 不与右栏col44冲突)
@@ -822,7 +868,7 @@ function renderStats() {
     })
     // 日志(通栏底部)
     at(20, 3, dim + '— 日志 —' + R)
-    S.log.slice().reverse().forEach((e, i) => { if (21 + i <= 22) at(21 + i, 3, dim + e.text.slice(0, TERM_W - 6) + R) })
+    S.log.slice().reverse().forEach((e, i) => { if (21 + i <= 22) at(21 + i, 3, dim + sliceW(e.text, TERM_W - 4) + R) })
   } else {
     // 窄屏单列: 图鉴压缩为一行 icon 摘要 + 纪念墙 2 条, 不显示日志(与主界面策略一致)
     const gotD = DEATHS.map(d => ({ d, n: S.memorial.filter(m => m.cause === d.cause).length }))
@@ -834,6 +880,42 @@ function renderStats() {
       if (23 + i <= 24) at(23 + i, 3, dim + `${m.name}·${m.days}天·${md ? md.icon + md.name : m.cause}` + R)
     })
   }
+}
+// 帮助面板(?): 按键速查, 复用数据面板的标题/返回按钮机械, 单列自适应
+function renderHelp() {
+  const back = '[Tab/? 关闭]'
+  const backW = dispW(back)
+  const backCol = TERM_W - backW - 1
+  at(1, 2, bold + fg(255, 255, 255) + '❓ 按键说明' + R)
+  at(1, backCol, bg(60, 70, 100) + fg(230, 230, 240) + back + R)
+  hotButtons.push({ row: 1, c0: backCol, c1: backCol + backW - 1, kind: 'toggleHelp' })
+  const rows = [
+    ['', '— 日常照顾 —', ''],
+    ['f', '喂食', '正餐，管饱'],
+    ['1', '零食', '开心，但容易胖'],
+    ['w', '喂水', '渴了就要喝'],
+    ['b', '洗澡', '去污，治本（治生病）'],
+    ['d', '吃药', '生病时救急（治标）'],
+    ['s', '睡觉', '恢复精力，再按一次叫醒'],
+    ['', '— 陪伴 —', ''],
+    ['t', '摸摸', '也可以直接点它（每小时前几次有效）'],
+    ['p', '玩耍', '消耗精力，换好心情'],
+    ['g', '猜拳', '三局两胜，输赢它都开心'],
+    ['c', '闲聊', '话题随状态和年龄变化'],
+    ['', '— 系统 —', ''],
+    ['Tab', '数据面板', '生涯 / 成就 / 纪念墙 / 日志'],
+    ['n', '起名', '一辈子一次'],
+    ['r', '重置', '纪念墙与成就保留'],
+    ['q', '退出', '随时走，它会等你'],
+  ]
+  rows.forEach(([key, label, desc], i) => {
+    const row = 3 + i
+    if (row > 22) return
+    if (!key) { at(row, 3, dim + label + R); return }
+    const labelTxt = label + '　'.repeat(Math.max(0, 4 - [...label].length)) // 补齐全角位对齐描述列
+    at(row, 3, fg(255, 220, 140) + key.padEnd(4) + R + ' ' + labelTxt + dim + '  ' + sliceW(desc, TERM_W - 20) + R)
+  })
+  at(24, 3, dim + '鼠标：点按钮即按键，点它 = 摸摸；按钮上会显示冷却剩余' + R)
 }
 function fmtDur(ms) {
   const m = Math.round(ms / 60000)
@@ -864,6 +946,7 @@ function setupInput(onAction, onQuit, onRename) {
     }
   })
   function dispatch(k) {
+    if (S.renaming) return // 改名行内输入由 renameFlow 独占(防名字里的 q/f/r 误触动作甚至退出)
     if (S.askReset) { // 重置确认优先拦截
       if (/^y(es)?$/i.test(k)) doReset()
       else { S.askReset = false; render() }
@@ -877,6 +960,14 @@ function setupInput(onAction, onQuit, onRename) {
     if (k.length === 1 && k >= '1' && k <= '3' && S.stage === 'eggSelect') { pickEgg(+k); return }
     if (k === '\t') { // 数据面板切换(选蛋/墓碑界面不适用)
       if (S.stage !== 'eggSelect' && S.stage !== 'dead') { PAGE = PAGE === 'main' ? 'stats' : 'main'; render() }
+      return
+    }
+    if (k === '?') { // 帮助面板: ? 开, ? 或 Tab 关
+      if (S.stage !== 'eggSelect' && S.stage !== 'dead') {
+        PAGE = PAGE === 'help' ? 'main' : 'help'
+        if (PAGE === 'help') S.helpHinted = true // 看过帮助就不再提示
+        render()
+      }
       return
     }
     if (S.stage === 'eggSelect') { if (k === 'q') onQuit(); return }
@@ -901,7 +992,7 @@ function setupInput(onAction, onQuit, onRename) {
 }
 function hitTest(row, col) {
   for (const b of hotButtons) if (row === b.row && col >= b.c0 && col <= b.c1) return b.kind
-  if (PAGE === 'stats') return null // 数据面板只有返回按钮可点
+  if (PAGE !== 'main') return null // 数据/帮助面板只有返回按钮可点
   // 点宠物 = 摸摸
   if ((S.stage === 'alive' || S.stage === 'dying' || S.stage === 'egg') && row >= 4 && row <= 14 && col >= 10 && col <= 68) return 'touch'
   if (S.stage === 'dead') {
@@ -923,6 +1014,7 @@ function pickEgg(n) {
 function doReset() { // 保留驯主生涯(纪念墙/成就/计数/世代), 重养当前宠物
   const keep = { memorial: S.memorial, achievements: S.achievements, stats: S.stats, generation: S.generation }
   S = Object.assign(defaultState(), keep)
+  PAGE = 'main'
   log('重置：重新开始（纪念墙与成就保留）')
   save(); render()
 }
@@ -1005,6 +1097,10 @@ setInterval(() => {
       S.exhaustSince = (S.awake && S.energy <= 0) ? (S.exhaustSince || Date.now()) : 0
     }
       recheckStage(0); if (!maybeBeg()) maybeTheater(); checkAchievements()
+    // 孵化后一次性引导: 等「初次见面」气泡(8s)落幕后提示 ? 帮助(看过帮助则免)
+    if (S.stage === 'alive' && !S.helpHinted && Date.now() - S.hatchedAt > 9000) {
+      S.helpHinted = true; bubble('按 ? 看按键说明', 12); save()
+    }
   } else if (S.stage === 'egg') {
     if (Date.now() - S.bornAt >= HATCH_MS) hatch()
     else if (Date.now() - (S.lastEggWiggle || 0) > 40000 / SCALE) {
