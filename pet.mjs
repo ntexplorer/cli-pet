@@ -595,13 +595,14 @@ function drawArt(rows, top, left, plan = null) {
   const desat = (S.stage === 'alive' || S.stage === 'dying') ? Math.max(isElder() ? 0.35 : 0, S.mood < 30 ? 0.5 : S.weight < thinLine() ? 0.2 : 0) : 0
   const mix = c => c.map(v => Math.round(v + (128 - v) * desat))
   for (let ri = 0; ri < rows.length; ri++) {
-    let line = rows[ri]
-    // 胖: 按计划把边缘像素色向两侧外扩(紧贴身体、原色、两侧等量 → 中心不漂移; 画布边距不再是胖感上限)
+    let line = rows[ri], col = left
+    // 胖: 按计划把边缘像素色向两侧外扩; 可见段保持画布内位置、补边向外伸 → 各行中轴对齐(不"往一边胖")
     if (plan && plan[ri] > 0) {
       const p = plan[ri]
       let f = -1, l = -1
       for (let ci = 0; ci < line.length; ci++) if (line[ci] !== '.') { if (f < 0) f = ci; l = ci }
       line = line[f].repeat(p) + line.slice(f, l + 1) + line[l].repeat(p)
+      col = left + f - p
     }
     let out = ''
     for (let ci = 0; ci < line.length; ci++) {
@@ -612,7 +613,7 @@ function drawArt(rows, top, left, plan = null) {
         out += c ? bg(...mix(c)) + ' ' + R : (bg(...mix(main)) + ' ' + R)
       }
     }
-    at(top + ri, left, out + ansi.clrEol)
+    at(top + ri, col, out + ansi.clrEol)
   }
 }
 function bar(label, v, color, extra = '') {
