@@ -577,19 +577,18 @@ function renderStars() {
     }
   }
 }
-function fatPlan(frames) { // 胖补边计划: 跨动画帧取交集(主体资格 ∩ 最小边距), 帧间/镜像稳定不闪烁
+function fatPlan(frames) { // 胖补边计划: 跨帧取交集的主体行资格(帧间/镜像稳定不闪烁), 补边向画布外扩张
   const PAD = 2
   const run = line => { let b = 0, c = 0; for (const ch of line) { c = ch === '.' ? 0 : c + 1; if (c > b) b = c } return b }
+  // 主体色族: 全帧出现最多的字符+大小写变体(G/g、H/h、R/r); 翅/角/尾焰等附属色行不补, 免悬浮色条
+  const count = {}
+  for (const fr of frames) for (const line of fr) for (const ch of line) if (ch !== '.') count[ch] = (count[ch] || 0) + 1
+  const body = Object.keys(count).sort((a, b) => count[b] - count[a])[0]
+  const kin = body.toLowerCase() === body ? body.toUpperCase() : body.toLowerCase()
   const runs = frames.map(fr => fr.map(run))
   const gate = Math.max(...runs.flat()) * 0.55 // 只补主体行, 角/翅/尾等窄段行不动, 免成矩形
-  return frames[0].map((_, ri) => {
-    if (!runs.every(fr => fr[ri] >= gate)) return 0
-    return frames.reduce((m, fr) => {
-      const line = fr[ri]; let f = -1, l = -1
-      for (let i = 0; i < line.length; i++) if (line[i] !== '.') { if (f < 0) f = i; l = i }
-      return Math.min(m, PAD, f, line.length - 1 - l)
-    }, PAD)
-  })
+  const edge = line => { let f = -1, l = -1; for (let i = 0; i < line.length; i++) if (line[i] !== '.') { if (f < 0) f = i; l = i } return (line[f] === body || line[f] === kin) && (line[l] === body || line[l] === kin) }
+  return frames[0].map((_, ri) => runs.every(fr => fr[ri] >= gate) && frames.every(fr => edge(fr[ri])) ? PAD : 0)
 }
 function drawArt(rows, top, left, plan = null) {
   const main = SPECIES[S.species]?.color || [200, 200, 200]
@@ -597,13 +596,12 @@ function drawArt(rows, top, left, plan = null) {
   const mix = c => c.map(v => Math.round(v + (128 - v) * desat))
   for (let ri = 0; ri < rows.length; ri++) {
     let line = rows[ri]
-    // 胖: 按计划把边缘像素色向两侧复制, 吃掉透明边距(总宽不变 → 肚鼓头细的自然轮廓)
+    // 胖: 按计划把边缘像素色向两侧外扩(紧贴身体、原色、两侧等量 → 中心不漂移; 画布边距不再是胖感上限)
     if (plan && plan[ri] > 0) {
       const p = plan[ri]
       let f = -1, l = -1
       for (let ci = 0; ci < line.length; ci++) if (line[ci] !== '.') { if (f < 0) f = ci; l = ci }
-      const pL = Math.min(p, f), pR = Math.min(p, line.length - 1 - l)
-      line = line.slice(0, f - pL) + line[f].repeat(pL) + line.slice(f, l + 1) + line[l].repeat(pR) + line.slice(l + 1 + pR)
+      line = line[f].repeat(p) + line.slice(f, l + 1) + line[l].repeat(p)
     }
     let out = ''
     for (let ci = 0; ci < line.length; ci++) {
