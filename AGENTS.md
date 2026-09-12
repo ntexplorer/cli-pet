@@ -31,6 +31,19 @@
 - scripts/vt2html.mjs：VT→HTML；Edge headless --screenshot 截 PNG
 - scripts/make-demo.mjs：cast→确定性回放页→逐帧截图→ffmpeg 合 demo.gif
 
+## 已知坑位（2026-09-12 v0.2.0 开发期实测）
+- 布局同行互写：at() 全清重绘看不见"行冲突"——窄屏按钮行上移后与 row21 日志行互踩出
+  "颗小"残片；溢出扫描器测不到同行互写。挪行/新面板前先对行占用表（数值区 17-19/角标
+  20/日志 21/按钮 22-24）
+- Edge headless --screenshot：反斜杠 file URL 静默不生效（批量截图全空转），必须正斜杠
+  file:///D:/... 且每张间隔 ≥500ms；验真用 git hash-object 对比 HEAD
+- VT 流截末帧：kill 硬杀的最后一帧不完整 → 截图后视觉审查误报"UI 缺失"；驱动器应先
+  stdin 写 'q' 优雅退出再兜底 kill
+- ANSI 码不能进 sliceW：样式前缀计入宽度预算会把文案截空；截断只对可见文本做、样式外置
+- PowerShell：`&&` 后不能跟 `foreach` 语句块（ParserError），用 `;` 分隔
+- 字符宽度口径：CJK=2/emoji=2（代理对按一码点）/U+00B7(·)=1，主流终端实测一致；
+  冷门终端 East-Asian-Ambiguous 可能 ±1 格（按钮槽已留 +5 余量缓冲）
+
 ## 发布
 - 验证过 → push main → tag vX.Y.Z → GitHub Actions 自动建 Release（附 pet.mjs/双 README）
 - CI：node --check + 无头启动冒烟（ubuntu/windows × node 18/20）
@@ -40,6 +53,15 @@
 - v0.2.0 ✅（2026-09-12）：
   - `?` 帮助界面、存档迁移链（SAVE_VERSION=2 + MIGRATIONS）、实测修复
     （G1–G10：宽屏截断/冷却抖动/改名误触/按钮越行/墓碑居中/热区宽度等）
+  - 终端尺寸自适应：<58 列×25 行整屏守卫、<68 列窄档单字按钮（[f 饭]）、逐帧轮询兜底
+  - 胖立绘重做：fatPlan 跨帧交集 + 主体色族门槛，边缘像素向外扩（三物种可见、中轴对称）
   - 后续改动存档结构时：SAVE_VERSION+1 并在 MIGRATIONS 挂增量函数
 - v0.3.0：i18n 英文（issue #1：MSG 目录 + t() + PET_LANG）
 - v0.4.0：新物种 ×2
+
+## 接续指引（2026-09-12 收工交接）
+- 现状：v0.2.0 已发版（tag + Release 产物齐、CI 绿）；用户次日起详细走测
+- 其他终端接续：`git pull` → 读本文件 → `/start-day` 盘点 → 优先处理用户测试反馈
+- 待办候选：v0.3.0 i18n（issue #1）；回归扫描器（19 场景 VT 溢出扫描，现为临时件
+  `%TEMP%\opencode\scan.mjs`）视价值固化进 scripts/；可选打磨 P2（帮助面板底注、角标
+  emoji 亮度）
