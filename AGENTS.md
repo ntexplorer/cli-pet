@@ -15,7 +15,7 @@
 - 物种/像素：SPECIES、ART.<species>（字符串数组=像素画，调色键见 PAL）、RPS_TEND
 - 数值：DECAY（每小时衰减）、ACTIONS、CD（冷却，随 --fast 缩放）、拒绝阈值散在 act()
 - 文案：ACHIEVEMENTS、CHAT_POOL/CHAT_COND、DEATHS、act() 内气泡
-- 渲染：render/renderEggSelect/renderRps/renderStats；排版必须用 dispW/sliceW
+- 渲染：render/renderEggSelect/renderRps/renderStats/renderHelp；排版必须用 dispW/sliceW
   （CJK 宽度安全），禁止裸 .length 布局
 - 存档字段名：bornAt/hatchedAt/diedAt/deathCause/lastSeen
   （曾因误写 born 导致"存活 20707 天"寿终 bug）
@@ -37,12 +37,9 @@
 
 ## 路线图
 - v0.1.0 ✅（2026-09-11）
-- v0.2.0（方案已批，待实现）：
-  - `?` 帮助界面——复用 stats 面板渲染机械；`?` 或 Tab 关闭；孵化后一次性
-    气泡提示「按 ? 看按键说明」（state 加标记位防复读）
-  - 存档迁移链——state.version → 2，load() 挂 MIGRATIONS 增量迁移，
-    老存档零感知加载
-  - 实测修复——维护者日常游玩反馈的问题逐一修；实现前先 `--fast`
-    全流程自跑扫毛刺
+- v0.2.0 ✅（2026-09-12）：
+  - `?` 帮助界面、存档迁移链（SAVE_VERSION=2 + MIGRATIONS）、实测修复
+    （G1–G10：宽屏截断/冷却抖动/改名误触/按钮越行/墓碑居中/热区宽度等）
+  - 后续改动存档结构时：SAVE_VERSION+1 并在 MIGRATIONS 挂增量函数
 - v0.3.0：i18n 英文（issue #1：MSG 目录 + t() + PET_LANG）
 - v0.4.0：新物种 ×2

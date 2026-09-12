@@ -30,7 +30,7 @@ const career = {
     { t: now - 1800_000, text: '洗了个香喷喷的澡' },
   ],
   memorial: [
-    { name: '煤球一世', species: 'slime', days: 11, cause: '饿死的', generation: 1 },
+    { name: '煤球一世', species: 'slime', days: 11, cause: '饥饿与干渴', generation: 1 },
     { name: '颊囊君', species: 'hamster', days: 8, cause: '心碎而亡', generation: 2 },
   ],
 }
@@ -60,6 +60,11 @@ const SEGMENTS = [
   {
     name: 'grave', ms: 5000, keys: [],
     state: { ...career, version: 1, stage: 'dead', named: true, species: 'slime', name: '小煤球', bornAt: now - 27 * D, hatchedAt: now - 26 * D, diedAt: now - 3 * H, deathCause: '寿终正寝', lastSeen: now },
+  },
+  {
+    name: 'help', ms: 5000,
+    keys: [[1500, '?']],
+    state: alive({ species: 'slime', name: '小煤球', hunger: 30, thirst: 40, mood: 55 }),
   },
 ]
 

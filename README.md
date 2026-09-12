@@ -32,9 +32,9 @@ A pixel-art virtual pet that lives in your terminal. Single file, zero dependenc
 |:---:|:---:|:---:|
 | ![egg select](docs/assets/egg-select.png) | ![main screen](docs/assets/main.png) | ![rps](docs/assets/rps.png) |
 
-| Career dashboard | The end (of this one) |
-|:---:|:---:|
-| ![stats](docs/assets/stats.png) | ![grave](docs/assets/grave.png) |
+| Career dashboard | The end (of this one) | Key reference |
+|:---:|:---:|:---:|
+| ![stats](docs/assets/stats.png) | ![grave](docs/assets/grave.png) | ![key reference](docs/assets/help.png) |
 
 ## Why
 
@@ -132,6 +132,7 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 | `g` | rock-paper-scissors | best-of-3 — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
 | `c` | small talk | mood +2 (60 s cooldown); topics react to stats, age and achievements |
 | `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
+| `?` | key reference | all keys at a glance (`?` or `Tab` to close); hinted once after hatching |
 | `n` | name (once) | up to 8 chars, CJK OK — the name sticks afterwards |
 | `r` | reset | keeps memorial & achievements, `y` to confirm |
 | `q` | quit | saves on exit |
