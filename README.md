@@ -24,7 +24,7 @@ A pixel-art virtual pet that lives in your terminal. Single file, zero dependenc
 
 ![demo screencast](docs/assets/demo.gif)
 
-*A full life in 40 seconds: pick an egg → feed, pet and bathe a slime → a dragon RPS match → the career dashboard → and eventually, a grave. Recorded from real output — no mockups anywhere in this README.*
+*A full life in under a minute: pick an egg → feed, pet and bathe a slime → a full best-of-3 RPS match against a dragon (shake, reveal, showdown) → the career dashboard → and eventually, a grave. Recorded from real output — no mockups anywhere in this README.*
 
 ## Gallery
 
@@ -42,7 +42,7 @@ Terminals are where we live all day — so a pet should live there too, without 
 
 - **Workday-paced, not needy.** Stats decay is tuned so something is worth doing every 25–30 minutes across an 8-hour day. Not a fire alarm, more like a colleague who occasionally wants a snack.
 - **Never punishes you for having a life.** No background process, no notifications. Time catches up on next launch, and your pet **cannot die while you're away** — offline stats have a floor and the dying clock freezes.
-- **One file, zero everything.** `pet.mjs` is the whole program. No install script, no package.json, no network, no telemetry. Read it in one sitting (it's ~1000 lines).
+- **One file, zero everything.** `pet.mjs` is the whole program. No install script, no package.json, no network, no telemetry. Read it in one sitting (it's ~1200 lines).
 - **A real arc.** Egg → baby → adult → elder (day 21+) → one of six deaths → mourning → next generation. Achievements and the memorial wall carry across generations.
 
 ## Install
@@ -97,7 +97,7 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 - **Six ways to go** — 🥀 starvation · 💔 broken heart · 🤒 untreated sickness · 🍰 overfeeding · ⚡ exhaustion · ⭐ old age (30 days, honorary). Unseen causes show as `???` in the death codex (Dead-Cells style)
 
 **Things to do together**
-- **Rock-paper-scissors** — `g` starts a best-of-3 match; each species has throw preferences you can learn, elders get stubborn, and matches always end with a happier pet
+- **Rock-paper-scissors** — `g` starts a best-of-3 match (`1`/`2`/`3` to throw); every throw plays a shake-then-reveal pixel animation — winner's hand lit and lifted, loser's dimmed. Each species has throw preferences you can learn, elders get stubborn, and matches always end with a happier pet
 - **Small talk** — `c` chats; what it says depends on stats, life stage and earned achievements — sick pets whine, elders reminisce
 - **Begging & theater** — needy pets beg (water bowl > food > play > bath priority); healthy ones improvise little scenes every 2–5 min
 
@@ -124,12 +124,12 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 | `f` | feed meal | hunger +32, weight +0.15 |
 | `1` | snack | hunger +8, mood +12, fatter — refused only above 85 hunger |
 | `w` | water | thirst +35 |
-| `b` | bath | clean +45, cures sickness (root cure) |
+| `b` | bath | clean +45, cures sickness (root cure), hunger −6, thirst −6 — a hot bath works up both an appetite and a thirst |
 | `d` | medicine | only when sick: instant cure, mood −20, energy −15 — dirt remains, re-sickens in 2 h unless bathed |
 | `p` | play | mood +28, energy −15, clean −5 (playing gets dirty) — refused if hungry <20, thirsty <20, or dying |
 | `s` | sleep toggle | recovers energy fast (40/h; 4/h while awake), hungers slower asleep — other actions refused while sleeping |
 | `t` | pet it | mood +10 (60 s cooldown) — or click the pet; gets annoyed (mood −3) past 2 pets per rolling hour (3 when elderly, +12 each) |
-| `g` | rock-paper-scissors | best-of-3 — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
+| `g` | rock-paper-scissors | best-of-3, throw with `1`/`2`/`3`, `q` to bow out — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
 | `c` | small talk | mood +2 (60 s cooldown); topics react to stats, age and achievements |
 | `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
 | `?` | key reference | all keys at a glance (`?` or `Tab` to close); hinted once after hatching |

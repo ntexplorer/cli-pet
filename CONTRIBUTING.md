@@ -1,6 +1,6 @@
 # Contribute to cli-pet
 
-Thanks for wanting to help! The whole game is one readable file (`pet.mjs`, ~1000 lines), zero dependencies by design — please help keep it that way.
+Thanks for wanting to help! The whole game is one readable file (`pet.mjs`, ~1200 lines), zero dependencies by design — please help keep it that way.
 
 ## Dev loop
 
@@ -10,6 +10,7 @@ cd cli-pet
 node pet.mjs          # play it
 node pet.mjs --fast   # ×60 clock: hatch in 3 s, a full life in ~20 min
 node --check pet.mjs  # syntax gate (also runs in CI)
+node scripts/scan.mjs # UI regression scan: 23 scenarios, overflow/collision/marker checks
 ```
 
 `--fast` is your friend: it exists precisely so you can try every feature (hatching, sickness, death timers, elder stage, mourning, next generation) in minutes instead of days.
@@ -25,7 +26,7 @@ Search for these — most contributions touch exactly one of them:
 | Chat lines | `CHAT_POOL` / `CHAT_COND` | 1 line each |
 | Balance tuning | `DECAY`, `ACTIONS`, `CD`, refusal thresholds | numbers |
 | Small theater scenes | `maybeTheater` bubble pool | 1 line each |
-| A mini-game | ask first in an issue, then `startRps`/`renderRps` is the pattern | ~80 lines |
+| A mini-game | ask first in an issue, then `startRps`/`rpsThrow`/`finishRps` + `renderRps`/`renderRpsReveal` is the pattern | ~80 lines |
 
 ## Guidelines
 
@@ -52,6 +53,7 @@ node scripts/vt2html.mjs build/seg-2-main.txt build/html/main.html
 Conventional commits (`feat(scope): …`, `fix(scope): …`, `docs: …`).
 
 - [ ] `node --check pet.mjs` passes
+- [ ] `node scripts/scan.mjs` all green
 - [ ] played a `--fast` run to see the change in context
 - [ ] screenshots refreshed (if UI changed)
 - [ ] README + README.zh-CN.md updated together (if user-facing)
