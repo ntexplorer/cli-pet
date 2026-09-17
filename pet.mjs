@@ -374,8 +374,9 @@ function act(kind) {
       if (cdLeft('bath') > 0) { bubble(`刚洗过澡，毛还没干（${cdLeft('bath')}s）`); break }
       if (S.clean > 60) { bubble('身上还挺干净的~'); break }
       S.clean = clamp(S.clean + 45)
+      S.hunger = clamp(S.hunger - 6); S.thirst = clamp(S.thirst - 6) // 热水澡: 又饿又渴(轻代价, 双 0 才致死无死线压力)
       if (isSick()) { log(`${S.name} 洗掉了一身病气，痊愈了！`); bubble('洗完澡，病好啦！') }
-      else bubble('泡泡好舒服~')
+      else bubble('泡泡好舒服~（肚子有点饿了）')
       S.dirtySince = 0; S.stats.bath++; S.careScore++; S.lastAct.bath = Date.now(); ok = true; break
     }
     case 'play': {
@@ -442,25 +443,26 @@ function startRps() {
   render()
 }
 function rpsThrow(i) {
-  if (!S.rps) return
+  if (!S.rps || S.rps.reveal) return // 揭示动画播放中锁定出招
   const p = petThrow()
   const res = (i + 3 - p) % 3 // 环形克制 石>剪>布>石: 0 平 · 1 它赢 · 2 我赢
   S.rps.round++
   if (res === 2) S.rps.me++; else if (res === 1) S.rps.pet++
-  if (S.rps.me >= 2 || S.rps.pet >= 2) {
-    const won = S.rps.me >= 2, me = S.rps.me, pet = S.rps.pet
-    S.stats.rps = (S.stats.rps || 0) + 1
-    if (won) { S.mood = clamp(S.mood + 15); S.energy = clamp(S.energy - 8); S.careScore++ }
-    else S.mood = clamp(S.mood + 5)
-    S.rps = null
-    S.mood = Math.min(S.mood, moodCap())
-    bubble(won ? '愿赌服输！再来再来！' : '嘿嘿赢啦～输了也陪你玩得很开心！')
-    log(won ? `猜拳获胜 ${me}:${pet}` : `猜拳落败 ${me}:${pet}`)
-    checkAchievements(); save(); render()
-  } else {
-    bubble(`你出${THROWS[i]}，它出${THROWS[p]} —— 现在 ${S.rps.me} : ${S.rps.pet}`, 6)
-    save()
-  }
+  // 结算移交 finishRps: 动画播完统一入账(q 跳过/中途退出也不丢)
+  S.rps.reveal = { me: i, pet: p, res, final: S.rps.me >= 2 || S.rps.pet >= 2, at: Date.now() }
+  save()
+}
+function finishRps() { // 终局结算: 揭示动画终屏到期(或 q 跳过)时调用
+  if (!S.rps?.reveal?.final) return
+  const won = S.rps.me >= 2, me = S.rps.me, pet = S.rps.pet
+  S.stats.rps = (S.stats.rps || 0) + 1
+  if (won) { S.mood = clamp(S.mood + 15); S.energy = clamp(S.energy - 8); S.careScore++ }
+  else S.mood = clamp(S.mood + 5)
+  S.rps = null
+  S.mood = Math.min(S.mood, moodCap())
+  bubble(won ? '愿赌服输！再来再来！' : '嘿嘿赢啦～输了也陪你玩得很开心！')
+  log(won ? `猜拳获胜 ${me}:${pet}` : `猜拳落败 ${me}:${pet}`)
+  checkAchievements(); save()
 }
 // ---------- 闲聊: 按状态生成话题的零门槛陪伴 ----------
 const CHAT_POOL = {
@@ -794,13 +796,63 @@ function render() {
   if (lastLog && btnTop >= rowB + 5) at(rowB + 4, 3, dim + sliceW(lastLog.text, TERM_W - 4) + R)
   hotButtons.push({ row: rowB + 3, c0: 3, c1: 12, kind: 'toggleStats' }) // 角标热区
 }
+// 猜拳手势像素图(7×6): X 主色 x 暗部 . 透明; 玩家手=暖肤色, 宠物手=物种主色
+const HAND_ART = [
+  ['..XXX..', '.XXXXX.', 'XXxXXXX', 'XXXxXXX', 'XXXXXXX', '.XXXXX.'], // 石头
+  ['X.....X', 'X.....X', 'XX...XX', 'XXx.xXX', '.XXXXX.', '.XXXXX.'], // 剪刀
+  ['X.X.X.X', 'X.X.X.X', 'XXXXXXX', 'XXXxXXX', '.XXXXX.', '.XXXXX.'], // 布
+]
+function drawHand(rows, top, left, main, dark, dimmed) {
+  const f = c => dimmed ? c.map(v => Math.round(v * 0.5 + 35)) : c // 败方整体压暗(保留对背景 ≥2.5:1 的轮廓对比)
+  const m = f(main), d = f(dark)
+  for (let ri = 0; ri < rows.length; ri++) {
+    let out = ''
+    for (const ch of rows[ri]) out += ch === '.' ? ' ' : bg(...(ch === 'x' ? d : m)) + ' ' + R
+    at(top + ri, left, out)
+  }
+}
+function renderRpsReveal(EW) { // 揭示动画(真实时钟, 不随 --fast): 晃拳 0-1s → 亮牌 1-2.8s → [终局屏至 4.8s]
+  const rv = S.rps.reveal, t = Date.now() - rv.at
+  const mid = (EW >> 1) + 1
+  const ctr = (row, txt, style) => at(row, Math.max(1, ((EW - dispW(txt)) >> 1) + 1), style + txt + R)
+  const cL = Math.max(2, mid - 13), cR = Math.min(EW - 7, mid + 6)
+  const nm = S.name || '它'
+  const skin = [238, 205, 170], skinD = [196, 158, 120]
+  const pc = SPECIES[S.species]?.color || [200, 200, 200], pcD = pc.map(v => Math.round(v * 0.55))
+  const label = (txt, col, style) => at(16, col + ((7 - dispW(txt)) >> 1), style + sliceW(txt, 7) + R)
+  if (t < 1000) { // 蓄势: 双拳对晃 + 口令滚动(标签同亮, 不预泄结果)
+    const top = 8 + (frame % 2)
+    drawHand(HAND_ART[0], top, cL, skin, skinD)
+    drawHand(HAND_ART[0], top, cR, pc, pcD)
+    ctr(11, `${THROWS[frame % 3]}…`, bold + fg(255, 220, 120))
+    label('你', cL, fg(230, 230, 230))
+    label(nm, cR, fg(230, 230, 230))
+  } else { // 亮牌: 双方翻开手势, 胜方抬高、败方压暗(标签亮度与手势联动, 明暗=真实胜负)
+    const fin = rv.final && t >= 2800 // 终局屏: 手势/标签回归中性亮度(胜方保留抬高), 视觉重心让给宣言行
+    const winMe = rv.res === 2, winPet = rv.res === 1
+    drawHand(HAND_ART[rv.me], winMe ? 7 : winPet ? 9 : 8, cL, skin, skinD, winPet && !fin)
+    drawHand(HAND_ART[rv.pet], winPet ? 7 : winMe ? 9 : 8, cR, pc, pcD, winMe && !fin)
+    ctr(11, 'VS', bold + fg(255, 220, 120))
+    label('你', cL, !fin && winMe ? bold + fg(255, 255, 255) : !fin && winPet ? dim : fg(230, 230, 230))
+    label(nm, cR, !fin && winPet ? bold + fg(255, 255, 255) : !fin && winMe ? dim : fg(230, 230, 230))
+    const rd = `第 ${S.rps.round - 1} 局 · `
+    if (rv.final && t >= 2800) { // 终局屏: 比分 + 宣言
+      const won = S.rps.me >= 2
+      ctr(17, won ? `🏆 你赢下整场！${S.rps.me} : ${S.rps.pet}` : `${nm} 赢下整场 ${S.rps.me} : ${S.rps.pet}`,
+        won ? bold + fg(120, 255, 120) : bold + fg(255, 150, 120))
+    } else ctr(17, rd + (rv.res === 2 ? '这局你赢！' : rv.res === 1 ? '这局它赢！' : '平局，再来！'),
+      rv.res === 2 ? bold + fg(120, 255, 120) : rv.res === 1 ? bold + fg(255, 150, 120) : fg(230, 230, 230))
+  }
+  at(22, 3, dim + (rv.final ? 'q 直接结算' : 'q 罢手离开（不计输赢）') + R)
+}
 function renderRps() {
   const EW = Math.min(TERM_W, +(process.stdout.columns || TERM_W))
   const title = `猜拳 · 三局两胜 —— 你 ${S.rps.me} : ${S.rps.pet} ${S.name || '它'}`
   at(2, Math.max(1, ((EW - dispW(title)) >> 1) + 1), bold + fg(255, 220, 120) + title + R)
+  if (S.rps.reveal) { renderRpsReveal(EW); return } // 星空已由 render() 统一画在底层(不再重画, 免夜里星星打穿立绘)
   const gs = grownStage()
   const frames = ART[S.species][gs === 'baby' ? 'baby' : 'adult']
-  drawArt(frames[frame % frames.length], 6, Math.max(2, Math.floor((EW - frames[0][0].length) / 2)))
+  drawArt(frames[frame % frames.length], 5, Math.max(2, Math.floor((EW - frames[0][0].length) / 2))) // 顶行 6→5: 12 行立绘(5-16)不再压 hint(17)
   const hint = `第 ${S.rps.round} 局 · 出招吧！`
   at(17, Math.max(1, ((EW - dispW(hint)) >> 1) + 1), dim + hint + R)
   const opts = ['1 石头', '2 剪刀', '3 布']
@@ -811,7 +863,6 @@ function renderRps() {
     for (let r = 18; r <= 20; r++) hotButtons.push({ row: r, c0: col, c1: col + pitch - 2, kind: 'rps' + (i + 1) })
   })
   at(22, 3, dim + '出招: 键盘 1/2/3 或点击按钮 · [q 罢手离开（不计输赢）]' + R)
-  renderStars()
 }
 function renderEggSelect() {
   const EW = Math.min(TERM_W, +(process.stdout.columns || TERM_W))
@@ -853,8 +904,12 @@ function renderStats() {
   const back = '[Tab 返回主界面]'
   const backW = [...back].reduce((w, c) => w + (/[\x00-\x7f\u00b7]/.test(c) ? 1 : 2), 0) // 显示宽度(CJK 2 cell)
   const backCol = TERM_W - backW - 1
-  const headInfo = `  ${S.name} · ${spec?.label || ''} · 第${S.generation}代 · 存活 ${livedDays(S).toFixed(1)} 天 · ${S.weight.toFixed(1)}kg${SCALE > 1 ? ' · ⏩x' + SCALE : ''}`
-  at(1, 2, bold + fg(255, 255, 255) + '📋 数据面板' + R + dim + dSlice(headInfo, backCol - 16) + R)
+  // 头部信息逐段装填: 预算不足时从尾部整段丢弃(体重最先让位), 不切出「· 1」这类半截残片
+  const headSegs = [`${S.name}`, `${spec?.label || ''}`, `第${S.generation}代`, `存活 ${livedDays(S).toFixed(1)} 天`, `${S.weight.toFixed(1)}kg`]
+  if (SCALE > 1) headSegs.push(`⏩x${SCALE}`)
+  let headInfo = '  ' + headSegs.join(' · ')
+  while (dispW(headInfo) > backCol - 16 && headSegs.length > 1) { headSegs.pop(); headInfo = '  ' + headSegs.join(' · ') }
+  at(1, 2, bold + fg(255, 255, 255) + '📋 数据面板' + R + dim + headInfo + R)
   at(1, backCol, bg(60, 70, 100) + fg(230, 230, 240) + back + R)
   hotButtons.push({ row: 1, c0: backCol, c1: backCol + backW - 1, kind: 'toggleStats' })
   // 两栏布局: 左栏动作+成就, 右栏图鉴+纪念墙, 日志通栏底部; 窄屏(<66)单列+压缩摘要
@@ -912,7 +967,7 @@ function renderHelp() {
     ['f', '喂食', '正餐，管饱'],
     ['1', '零食', '开心，但容易胖'],
     ['w', '喂水', '渴了就要喝'],
-    ['b', '洗澡', '去污，治本（治生病）'],
+    ['b', '洗澡', '去污治本（治生病）；洗完微饿微渴'],
     ['d', '吃药', '生病时救急（治标）'],
     ['s', '睡觉', '恢复精力，再按一次叫醒'],
     ['', '— 陪伴 —', ''],
@@ -970,7 +1025,11 @@ function setupInput(onAction, onQuit, onRename) {
       else { S.askReset = false; render() }
       return
     }
-    if (S.rps) { // 猜拳进行中: 只认出招/退出
+    if (S.rps) { // 猜拳进行中: 只认出招/退出; 揭示动画期出招锁定, q 跳过(终局→结算, 中局→弃局)
+      if (S.rps.reveal) {
+        if (k === 'q') { if (S.rps.reveal.final) finishRps(); else S.rps = null; render() }
+        return
+      }
       if (k >= '1' && k <= '3') { rpsThrow(+k - 1); render() }
       else if (k === 'q') { S.rps = null; render() }
       return
@@ -1010,6 +1069,7 @@ function setupInput(onAction, onQuit, onRename) {
 }
 function hitTest(row, col) {
   for (const b of hotButtons) if (row === b.row && col >= b.c0 && col <= b.c1) return b.kind
+  if (S.rps) return null // 对局中只认出招热区(上方循环已匹配); 揭示动画期无任何热区
   if (PAGE !== 'main') return null // 数据/帮助面板只有返回按钮可点
   // 点宠物 = 摸摸
   if ((S.stage === 'alive' || S.stage === 'dying' || S.stage === 'egg') && row >= 4 && row <= 14 && col >= 10 && col <= 68) return 'touch'
@@ -1098,6 +1158,11 @@ setupInput(
 setInterval(() => { if (S.renaming || S.askReset) return; frame++; render() }, 500)
 setInterval(() => {
   if (S.renaming) return
+  if (S.rps?.reveal) { // 揭示动画相位推进(真实时钟, 不随 --fast 缩放): 中局亮完回出招, 终局屏后结算
+    const dt = Date.now() - S.rps.reveal.at
+    if (S.rps.reveal.final && dt > 4800) finishRps()
+    else if (!S.rps.reveal.final && dt > 2800) S.rps.reveal = null
+  }
   if (S.stage === 'alive' || S.stage === 'dying') {
     applyDecay(SCALE / 3600)
     if (S.clean < 15) { if (!S.dirtySince) S.dirtySince = Date.now() }
