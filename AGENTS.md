@@ -80,13 +80,20 @@
     hint 行重叠、夜间星星打穿猜拳立绘、renderStats 头部"· 1"截断残段
   - scripts/scan.mjs 回归扫描器固化（23 场景）；素材全量重录（6 PNG + demo.gif）
 - v0.3.0：i18n 英文（issue #1：MSG 目录 + t() + PET_LANG + L 键切换 + 首启按系统语言
-  检测；deathCause 中文串→key 需 SAVE_VERSION 3 迁移；README.md 保持英文默认）
+  检测；deathCause 中文串→key 需 SAVE_VERSION 3 迁移；README.md 保持英文默认）；
+  同版附带：版本号显示（VERSION 常量 + `--version` 打印即退 + 帮助面板角落显示，
+  非交互 shell 误跑不再挂起）+ 双 clone 游玩 ritual 文档化（README×2：日常玩用
+  独立 clone/发布件，升级=git pull；--save/--test 已论证不做，双 clone 即隔离）
 - v0.4.0：新物种 ×2
 
-## 接续指引（2026-09-17 v0.2.1 收工交接）
-- 现状：v0.2.1 已发版（洗澡代价+猜拳揭示动画+扫描器+素材重录）；素材经两轮多模态
-  视觉审查放行
+## 接续指引（2026-09-17 第二场收工交接）
+- 现状：v0.2.1 已发版并验证（CI/Release 绿）；游玩副本（~/.config/cli-pet，`pet` 命令）
+  已升级到 v0.2.1，真宠存档无感迁移；开发工作流已定：**双 clone 即隔离**，
+  `--save`/`--test` 已论证不做（YAGNI），升级 ritual = 游玩目录 `git pull`
 - 遗留 P2 打磨（视觉审查提出，未做）：选蛋界面下半屏留白、帮助面板底注空档（原有
   backlog）、help 键位列"1"字形 webfont 观感
+- v0.3.0 工作量评估：迄今最大一版（~250 串×2 语言、~150 调用点扫荡 + 英文声线
+  定调 + SAVE_VERSION 3 迁移），可拆 v0.3.0/v0.3.1 两批；第一步 = 全量字符串清单
+  + 10 条中英对照样例定英文声线（见上方路线图 v0.3.0 条目）
 - 其他终端接续：`git pull` → 读本文件 → `/start-day` 盘点 → 下一步 v0.3.0 i18n
   （注意：scan.mjs 的 marker 是中文，i18n 后要补英文对照）
