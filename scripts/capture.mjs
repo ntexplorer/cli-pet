@@ -5,7 +5,7 @@
 //   build/seg-<n>-<name>.txt raw VT stream per segment (for vt2html.mjs)
 // Your real state.json is backed up to build/state.json.userbak and restored at the end.
 import { spawn } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -45,12 +45,20 @@ const SEGMENTS = [
   {
     name: 'main', ms: 12500,
     keys: [[2200, 't'], [5200, 'f'], [8600, 'b']],
-    state: alive({ species: 'slime', name: '小煤球', clean: 38 }),
+    state: alive({ species: 'slime', name: '小煤球', clean: 38, lastEventAt: now, lastBegAt: now }),
   },
+  // 完整三局(2:0): rnd=0.7 → 龙固定出剪刀, 我方两记石头连胜; 覆盖 蓄势→亮牌→终局屏→胜利气泡
   {
-    name: 'rps', ms: 9000,
-    keys: [[1800, 'g'], [4200, '1']],
-    state: alive({ species: 'dragon', name: '喷火娃', careScore: 55, mood: 58, energy: 66, weight: 2.4 }),
+    name: 'rps', ms: 14000,
+    keys: [[1800, 'g'], [3500, '1'], [7600, '1']],
+    state: alive({ species: 'dragon', name: '喷火娃', careScore: 55, mood: 58, energy: 66, weight: 2.4, lastEventAt: now, lastBegAt: now, lastEggWiggle: now }),
+    rnd: 0.7,
+  },
+  // rps.png 海报帧: 定格第二局亮牌相位(不进 cast)
+  {
+    name: 'rps-reveal', ms: 10000, hard: true, cast: false, rnd: 0.7,
+    keys: [[1800, 'g'], [3500, '1'], [7600, '1']],
+    state: alive({ species: 'dragon', name: '喷火娃', careScore: 55, mood: 58, energy: 66, weight: 2.4, lastEventAt: now, lastBegAt: now, lastEggWiggle: now }),
   },
   {
     name: 'stats', ms: 5000,
@@ -71,7 +79,11 @@ const SEGMENTS = [
 function runSegment(seg, idx) {
   return new Promise(resolve => {
     fs.writeFileSync(path.join(ROOT, 'state.json'), JSON.stringify(seg.state))
-    const p = spawn(process.execPath, ['pet.mjs'], {
+    // rnd: 固定 Math.random(出招/漫游确定性回放); 注入脚本与 pet.mjs 参数互斥, 需全在 -e 内处理
+    const args = seg.rnd != null
+      ? ['-e', `Math.random=()=>${seg.rnd};import(${JSON.stringify(pathToFileURL(path.join(ROOT, 'pet.mjs')).href)})`]
+      : ['pet.mjs']
+    const p = spawn(process.execPath, args, {
       cwd: ROOT,
       env: { ...process.env, PET_WIDTH: '80' },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -82,11 +94,14 @@ function runSegment(seg, idx) {
     p.stderr.on('data', d => events.push([Date.now() - t0, d.toString('utf8')]))
     for (const [at, key] of seg.keys) setTimeout(() => { try { p.stdin.write(key) } catch {} }, at)
     setTimeout(() => {
-      p.kill()
+      if (!seg.hard) { try { p.stdin.write('q') } catch {} } // 先优雅退出: 硬杀的末帧不完整会污染 vt2html 定稿帧
       setTimeout(() => {
-        try { fs.rmSync(path.join(ROOT, 'state.json.lock')) } catch {}
-        resolve(events)
-      }, 250)
+        p.kill()
+        setTimeout(() => {
+          try { fs.rmSync(path.join(ROOT, 'state.json.lock')) } catch {}
+          resolve(events)
+        }, 250)
+      }, seg.hard ? 0 : 900)
     }, seg.ms)
   })
 }
@@ -98,8 +113,10 @@ for (let i = 0; i < SEGMENTS.length; i++) {
   console.log(`segment ${i + 1}/${SEGMENTS.length}: ${seg.name} (${seg.ms}ms)`)
   const events = await runSegment(seg, i)
   fs.writeFileSync(path.join(BUILD, `seg-${i + 1}-${seg.name}.txt`), events.map(([, s]) => s).join(''))
-  for (const [dt, s] of events) cast.push([+(tCursor + dt / 1000).toFixed(3), 'o', Buffer.from(s, 'utf8').toString('base64')])
-  tCursor += seg.ms / 1000 + 0.9
+  if (seg.cast !== false) {
+    for (const [dt, s] of events) cast.push([+(tCursor + dt / 1000).toFixed(3), 'o', Buffer.from(s, 'utf8').toString('base64')])
+    tCursor += seg.ms / 1000 + 0.9
+  }
 }
 fs.writeFileSync(path.join(BUILD, 'demo.cast'), cast.map(l => JSON.stringify(l)).join('\n') + '\n')
 if (hadSave) fs.copyFileSync(path.join(BUILD, 'state.json.userbak'), path.join(ROOT, 'state.json'))
