@@ -122,11 +122,11 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 |----|--------|--------|
 | `1` `2` `3` | pick egg | choose species |
 | `f` | feed meal | hunger +32, weight +0.15 |
-| `1` | snack | hunger +8, mood +12, fatter — refused only above 85 hunger |
+| `1` | snack | hunger +8, mood +12, fatter — refused only above 85 hunger; the 3rd snack within an hour upsets its stomach (medicine is the only cure) |
 | `w` | water | thirst +35 |
 | `b` | bath | clean +45, cures sickness (root cure), hunger −6, thirst −6 — a hot bath works up both an appetite and a thirst |
-| `d` | medicine | only when sick: instant cure, mood −20, energy −15 — dirt remains, re-sickens in 2 h unless bathed |
-| `p` | play | mood +28, energy −15, clean −5 (playing gets dirty) — refused if hungry <20, thirsty <20, or dying |
+| `d` | medicine | when sick: instant cure (the only cure for an upset stomach), mood −20, energy −15 — grime-sickness returns in 1 h without a bath |
+| `p` | play | mood +28, energy −15, clean −5 (playing gets dirty), −0.2 kg burn — refused if hungry <20, thirsty <20, or dying |
 | `s` | sleep toggle | recovers energy fast (40/h; 4/h while awake), hungers slower asleep — other actions refused while sleeping |
 | `t` | pet it | mood +10 (60 s cooldown) — or click the pet; gets annoyed (mood −3) past 2 pets per rolling hour (3 when elderly, +12 each) |
 | `g` | rock-paper-scissors | best-of-3, throw with `1`/`2`/`3`, `q` to bow out — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
@@ -145,9 +145,10 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 | Refusal thresholds | won't eat >65 hunger · drink >65 thirst · bathe >60 clean · play >90 mood · snack >85 hunger |
 | Cooldowns | feed/water 90 s · touch 60 s · chat 60 s · play 3 min · rps 3 min · snack 5 min · bath 10 min · medicine 3 min |
 | Typical cadence | play ~every 30 min · water ~1.3 h · feed ~1.75 h · bath ~4 h — something to do every 25–30 min |
-| Sickness | clean < 15 for 2 h → appetite halved, mood capped; bath cures the root, medicine the symptom |
+| Sickness | three sources: grime (clean < 25 for 1 h) · chill (20%/h roll below clean 30) · upset stomach (3rd snack within an hour) → appetite halved, mood capped; baths cure grime & chill, only medicine cures an upset stomach |
 | Dying | hunger AND thirst both 0 → 4 h rescue window (feed + water); total collapse (energy & mood also 0) compresses it to 1 h |
-| Death timers | each terminal state (mood 0 · sick · 1.6× obese · awake at 0 energy) kills after 2 h if untreated — red countdown badge warns you |
+| Death timers | each terminal state (mood 0 · sick · 1.6× obese · awake at 0 energy) kills after 2 h if untreated — red countdown badge warns you; obesity is rescuable — playing burns weight (see active metabolism) |
+| Active metabolism | plays within 10 min stack a buff (max 3): weight burn +0.1×stack/h, fades 20 min after the last play · 🔥 badge shows stacks |
 | Elder stage | from day 21: smaller meals (+22), play tires it (−22 energy, +20 mood), lighter sleep (30/h), slower metabolism, lonelier (mood −22/h), grayer & slower sprite — but cozier: 3 free pets/h (+12), richer chats (+4), stubborn RPS throws · ⭐ days-left badge |
 | Old age | survive 30 days → ⭐ honorary passing (achievement 三十日谈) |
 | Death codex | Tab → 6-entry gallery; unseen causes show `???` |
