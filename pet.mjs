@@ -31,7 +31,10 @@ const SPECIES = {
 }
 // 每小时衰减 — 按 8h 工作日挂机调校: 每 25-30 分钟有一件事可做
 const DECAY = { hunger: 20, thirst: 26, clean: 11, mood: 18, weight: 0.1 }
-const SICK_AFTER_DIRTY_H = 2       // 洁净<15 持续 2h 生病
+const SICK_AFTER_DIRTY_H = 1       // 洁净<SICK_DIRTY 持续 1h → 脏病
+const SICK_DIRTY = 25              // 脏病警戒线(低于开始计时); 着凉掷骰线在 30
+const SICK_CHILL_BELOW = 30        // 洁净低于此每游戏小时 20% 掷骰着凉
+const SICK_CHILL_P = 0.2
 const DYING_GRACE_H = 4            // 饱腹&口渴双 0 → 弥留 4h(全衰竭压缩至 1h)
 const MOURN_H = 2                  // 死亡后守灵
 const OFFLINE_DECAY_CAP_H = 48     // 离线衰减封顶（离线不致死，数值另有托底）
@@ -145,9 +148,11 @@ function hatchProgress() { return Math.max(0, Math.min(1, (Date.now() - S.bornAt
 
 // ---------- 状态 ----------
 // 存档迁移链: 老存档按级逐步升到当前版本, 玩家零感知; 新增字段由 defaultState 合并兜底
-const SAVE_VERSION = 2
+const SAVE_VERSION = 3
 const MIGRATIONS = {
   // 1 → 2: v0.2.0 建链, 无结构变更
+  // 2 → 3: v0.2.2 生病来源细分(sickType), 老存档病中状态归为脏病
+  2: d => { if (d.sickSince) d.sickType = 'dirty' },
 }
 function migrateSave(d) {
   const v = d.version || 1
@@ -164,7 +169,7 @@ function defaultState() {
     generation: 1,
     hunger: 80, thirst: 80, clean: 80, mood: 80, energy: 80,
     weight: 0, awake: true,
-    dirtySince: 0, dyingSince: 0, diedAt: 0, deathCause: '',
+    dirtySince: 0, dyingSince: 0, diedAt: 0, deathCause: '', sickType: '', // ''|dirty(脏)|chill(着凉)|upset(闹肚子)
     heartSince: 0, sickSince: 0, obeseSince: 0, exhaustSince: 0, // 四条异常死线计时(离线冻结)
     careScore: 0,
     stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0, rps: 0, chat: 0 },
@@ -173,6 +178,8 @@ function defaultState() {
     log: [],                   // 最近事件 [{t,text}]
     lastAct: {}, named: false, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, helpHinted: false, // bubble {text, until}; helpHinted 孵化后 ? 提示只播一次
     touchLog: [],              // 摸摸时间戳(滚动1h窗口, 防白嫖心情)
+    snackLog: [],              // 零食时间戳(滚动1h窗口, 第3次闹肚子)
+    metaLv: 0, metaUntil: 0,   // 运动热度: 连续玩耍叠层提代谢, 停玩一段时间恢复原值
     rps: null,                 // 猜拳进行中 {me, pet, round}
   }
 }
@@ -212,6 +219,13 @@ const LIFESPAN_DAYS = 30         // 寿终正寝(荣誉死法)
 // 动作冷却(毫秒, 测试档同步加速); 配合阈值拒绝防狂点 — 数值健康时动作同样会被拒绝
 const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3, dose: 180e3, rps: 180e3, chat: 60e3 }
 for (const _k in CD) CD[_k] /= SCALE
+// 运动热度: 10 分钟内连玩叠 1 层(至多 3 层), 每层体重衰减 +0.1/h; 停玩 20 分钟后恢复原值
+const META_CHAIN = 10 * 60000 / SCALE, META_HOLD = 20 * 60000 / SCALE, META_MAX = 3
+function metaActive() { return S.metaUntil > Date.now() ? (S.metaLv || 0) : 0 }
+function bumpMeta() {
+  S.metaLv = Date.now() - (S.lastAct.play || 0) < META_CHAIN ? Math.min(META_MAX, (S.metaLv || 0) + 1) : 1
+  S.metaUntil = Date.now() + META_HOLD
+}
 function dec(v, rate, h) { return Math.max(0, v - rate * h) }
 function applyDecay(h) {
   if (S.stage !== 'alive' && S.stage !== 'dying') return
@@ -220,7 +234,7 @@ function applyDecay(h) {
   S.thirst = dec(S.thirst, DECAY.thirst, h)
   S.clean = dec(S.clean, DECAY.clean, h)
   S.mood = dec(S.mood, isElder() ? DECAY.mood + 4 : DECAY.mood, h) // 暮年更怕寂寞 18→22/h
-  S.weight = Math.max(0.2, S.weight - DECAY.weight * (isElder() ? 0.5 : 1) * h) // 暮年代谢慢, 更易发福
+  S.weight = Math.max(0.2, S.weight - (DECAY.weight + 0.1 * metaActive()) * (isElder() ? 0.5 : 1) * h) // 暮年代谢慢, 更易发福; 运动热度加成代谢
   // 低指标拖累心情
   let extra = 0
   if (S.hunger < 30) extra += 4
@@ -239,7 +253,7 @@ function moodCap() {
 function fatLine() { return SPECIES[S.species]?.baseWeight * 1.5 || 3 }
 function thinLine() { return SPECIES[S.species]?.baseWeight * 0.6 || 1 }
 // 挂在 state 上的便捷方法用函数替代
-function isSick() { return !!S.dirtySince && Date.now() - S.dirtySince > SICK_MS && S.clean < 15 }
+function isSick() { return !!S.sickType } // dirty=脏病 chill=着凉 upset=闹肚子(零食); 触发见 tick/act
 
 // 离线补算: 挂机玩具语义 — 离线不致死, 数值托底; 只有开着 pane 时才会饿死
 function catchUp() {
@@ -361,8 +375,15 @@ function act(kind) {
       if (cdLeft('snack') > 0) { bubble(`零食刚吃过（${cdLeft('snack')}s）`); break }
       if (S.hunger > 85) { bubble('真的一口都塞不下了~'); break } // 零食诱惑力 > 正餐: 拒绝线更高
       S.hunger = clamp(S.hunger + 8); S.mood = clamp(S.mood + (sick ? 6 : 12)); S.weight += 0.25; S.stats.snack++
-      S.careScore++; S.lastAct.snack = Date.now(); ok = true
-      bubble('零食！开心转圈！'); break
+      // 闹肚子: 滚动 1h 内第 3 次零食 → 肠胃抗议(洗澡无效, 只能吃药)
+      const snackAgo = Date.now() - 3600000 / SCALE
+      S.snackLog = (S.snackLog || []).filter(t => t > snackAgo)
+      S.snackLog.push(Date.now())
+      if (!isSick() && S.snackLog.length >= 3) {
+        S.sickType = 'upset'; S.sickSince = Date.now(); S.dirtySince = 0
+        log(`${S.name} 零食吃太急，闹肚子了！（吃点药吧）`); bubble('（咕噜噜…肚子好难受…）', 12)
+      } else bubble('零食！开心转圈！')
+      S.careScore++; S.lastAct.snack = Date.now(); ok = true; break
     }
     case 'water': {
       if (cdLeft('water') > 0) { bubble(`喝太快会呛到（${cdLeft('water')}s）`); break }
@@ -375,7 +396,10 @@ function act(kind) {
       if (S.clean > 60) { bubble('身上还挺干净的~'); break }
       S.clean = clamp(S.clean + 45)
       S.hunger = clamp(S.hunger - 6); S.thirst = clamp(S.thirst - 6) // 热水澡: 又饿又渴(轻代价, 双 0 才致死无死线压力)
-      if (isSick()) { log(`${S.name} 洗掉了一身病气，痊愈了！`); bubble('洗完澡，病好啦！') }
+      if (isSick()) {
+        if (S.sickType === 'upset') bubble('洗完澡，肚子还是咕噜噜的…（吃点药吧）') // 闹肚子: 洗澡不管用, 药才是解
+        else { const cured = S.sickType; S.sickType = ''; S.sickSince = 0; log(cured === 'chill' ? `${S.name} 的热水澡驱走了寒气，痊愈了！` : `${S.name} 洗掉了一身病气，痊愈了！`); bubble('洗完澡，病好啦！') }
+      }
       else bubble('泡泡好舒服~（肚子有点饿了）')
       S.dirtySince = 0; S.stats.bath++; S.careScore++; S.lastAct.bath = Date.now(); ok = true; break
     }
@@ -389,6 +413,8 @@ function act(kind) {
       S.mood = clamp(S.mood + (isElder() ? 20 : 28)); S.energy = clamp(S.energy - (isElder() ? 22 : 15)) // 暮年玩一会就喘
       S.hunger = clamp(S.hunger - 4); S.thirst = clamp(S.thirst - 6)
       S.clean = clamp(S.clean - 5) // 玩得一身泥
+      S.weight = Math.max(0.2, S.weight - 0.2) // 燃脂: 玩耍是唯一的主动减重手段(超重的救赎)
+      bumpMeta() // 运动热度: 要在 lastAct.play 更新前判定连续窗口
       S.stats.play++; S.careScore += 2; S.lastAct.play = Date.now(); ok = true; bubble('耶！再玩一次！'); break
     }
     case 'sleepToggle': {
@@ -399,10 +425,12 @@ function act(kind) {
     case 'dose': {
       if (cdLeft('dose') > 0) { bubble(`药劲还没过（${cdLeft('dose')}s）`); break }
       if (!isSick()) { bubble('它很健康，不需要吃药'); break }
-      S.sickSince = 0; S.dirtySince = 0 // 重置病计时(治标: 脏没除, 2h 后会再病)
+      const st = S.sickType
+      S.sickType = ''; S.sickSince = 0; S.dirtySince = 0; S.snackLog = [] // 药到病除; 胃也休整了(零食窗口清零)
       S.mood = clamp(S.mood - 20); S.energy = clamp(S.energy - 15) // 苦药的代价
       S.stats.dose++; S.lastAct.dose = Date.now(); ok = true
-      log(`${S.name} 皱着眉把药吃了…病好啦（记得洗澡除根）`); bubble('苦…但病好了…', 10); break
+      log(`${S.name} 皱着眉把药吃了…病好啦${st === 'dirty' ? '（记得洗澡除根）' : ''}`)
+      bubble(st === 'upset' ? '苦…但肚子舒服多了…' : st === 'chill' ? '苦…身上热乎多了…' : '苦…但病好了…', 10); break
     }
     case 'touch': {
       if (cdLeft('touch') > 0) { bubble('（被摸得毛都乱了…）'); break }
@@ -446,10 +474,11 @@ function rpsThrow(i) {
   if (!S.rps || S.rps.reveal) return // 揭示动画播放中锁定出招
   const p = petThrow()
   const res = (i + 3 - p) % 3 // 环形克制 石>剪>布>石: 0 平 · 1 它赢 · 2 我赢
+  const prevMe = S.rps.me, prevPet = S.rps.pet // 晃拳期标题仍显旧比分, 亮牌才同步(防剧透)
   S.rps.round++
   if (res === 2) S.rps.me++; else if (res === 1) S.rps.pet++
   // 结算移交 finishRps: 动画播完统一入账(q 跳过/中途退出也不丢)
-  S.rps.reveal = { me: i, pet: p, res, final: S.rps.me >= 2 || S.rps.pet >= 2, at: Date.now() }
+  S.rps.reveal = { me: i, pet: p, res, final: S.rps.me >= 2 || S.rps.pet >= 2, at: Date.now(), prevMe, prevPet }
   save()
 }
 function finishRps() { // 终局结算: 揭示动画终屏到期(或 q 跳过)时调用
@@ -691,7 +720,7 @@ function renderFx(artTop, artLeft, artW) {
   cols.forEach((c, i) => {
     let row = artTop + d.from + (d.dir > 0 ? drop : -drop) // 落下↓ / 上升↑
     if (i === 1 && f % 2) return // 中粒闪烁
-    at(Math.max(1, Math.min(23, row)), c, fg(...d.color) + ch + R)
+    at(Math.max(3, Math.min(23, row)), c, fg(...d.color) + ch + R) // 行守卫: 顶部 2 行标题区, 粒子只落在 ≥3 行(防打穿"存活x天")
   })
 }
 
@@ -758,6 +787,8 @@ function render() {
   for (const t of deathTimers()) {
     if (t.left > 0) statusIcons.push(bold + fg(255, 60, 60) + `${t.icon}${fmtDur(t.left)}` + R)
   }
+  const mlv = metaActive()
+  if (mlv) statusIcons.push(fg(255, 160, 80) + `🔥${mlv}` + R) // 运动热度层数(燃脂加速中)
   if (isElder()) statusIcons.push(fg(255, 220, 120) + `⭐${Math.max(0, LIFESPAN_DAYS - livedDays(S)).toFixed(1)}天` + R) // 寿终倒计时(金色·荣誉)
   const iconsTxt = statusIcons.join(' ')
   const iconsW = dispW(iconsTxt.replace(/\x1b\[[\d;]*m/g, '')) // 剥掉色码再量宽
@@ -784,7 +815,7 @@ function render() {
 
   // 成就/纪念收纳为角标(点击或 Tab 进数据面板) + 帮助入口 + 最新一条日志独占行(不再与数值区接壤)
   const gotN = ACHIEVEMENTS.filter(a => S.achievements.includes(a.id)).length
-  const badgeTxt = `🏆 ${gotN}/${ACHIEVEMENTS.length}   🕊 ${S.memorial.length}`
+  const badgeTxt = `🏆 成就 ${gotN}/${ACHIEVEMENTS.length} · 🪦 纪念 ${S.memorial.length}`
   at(rowB + 3, 3, dim + badgeTxt + R)
   const helpTxt = '[? 说明]'
   const helpCol = Math.min(TERM_W - dispW(helpTxt), 3 + dispW(badgeTxt) + 4)
@@ -794,7 +825,7 @@ function render() {
   // 窄屏(<68 列)按钮占 4 行会顶到 row 21, 与日志行互踩 → 此时日志让位不画
   const lastLog = S.log[S.log.length - 1]
   if (lastLog && btnTop >= rowB + 5) at(rowB + 4, 3, dim + sliceW(lastLog.text, TERM_W - 4) + R)
-  hotButtons.push({ row: rowB + 3, c0: 3, c1: 12, kind: 'toggleStats' }) // 角标热区
+  hotButtons.push({ row: rowB + 3, c0: 3, c1: 3 + dispW(badgeTxt) - 1, kind: 'toggleStats' }) // 角标热区(宽度随文案)
 }
 // 猜拳手势像素图(7×6): X 主色 x 暗部 . 透明; 玩家手=暖肤色, 宠物手=物种主色
 const HAND_ART = [
@@ -838,7 +869,7 @@ function renderRpsReveal(EW) { // 揭示动画(真实时钟, 不随 --fast): 晃
     const rd = `第 ${S.rps.round - 1} 局 · `
     if (rv.final && t >= 2800) { // 终局屏: 比分 + 宣言
       const won = S.rps.me >= 2
-      ctr(17, won ? `🏆 你赢下整场！${S.rps.me} : ${S.rps.pet}` : `${nm} 赢下整场 ${S.rps.me} : ${S.rps.pet}`,
+      ctr(17, won ? `🏆 你赢下整场！${S.rps.me}:${S.rps.pet}` : `${nm} 赢下整场 ${S.rps.me}:${S.rps.pet}`,
         won ? bold + fg(120, 255, 120) : bold + fg(255, 150, 120))
     } else ctr(17, rd + (rv.res === 2 ? '这局你赢！' : rv.res === 1 ? '这局它赢！' : '平局，再来！'),
       rv.res === 2 ? bold + fg(120, 255, 120) : rv.res === 1 ? bold + fg(255, 150, 120) : fg(230, 230, 230))
@@ -847,7 +878,9 @@ function renderRpsReveal(EW) { // 揭示动画(真实时钟, 不随 --fast): 晃
 }
 function renderRps() {
   const EW = Math.min(TERM_W, +(process.stdout.columns || TERM_W))
-  const title = `猜拳 · 三局两胜 —— 你 ${S.rps.me} : ${S.rps.pet} ${S.name || '它'}`
+  const rv = S.rps.reveal
+  const frozen = rv && Date.now() - rv.at < 1000 // 晃拳期比分冻结在出招前, 亮牌(1s)与手势同步揭晓
+  const title = `猜拳 · 三局两胜 —— 你 ${frozen ? rv.prevMe : S.rps.me}:${frozen ? rv.prevPet : S.rps.pet} ${S.name || '它'}`
   at(2, Math.max(1, ((EW - dispW(title)) >> 1) + 1), bold + fg(255, 220, 120) + title + R)
   if (S.rps.reveal) { renderRpsReveal(EW); return } // 星空已由 render() 统一画在底层(不再重画, 免夜里星星打穿立绘)
   const gs = grownStage()
@@ -1165,8 +1198,13 @@ setInterval(() => {
   }
   if (S.stage === 'alive' || S.stage === 'dying') {
     applyDecay(SCALE / 3600)
-    if (S.clean < 15) { if (!S.dirtySince) S.dirtySince = Date.now() }
+    if (S.clean < SICK_DIRTY) { if (!S.dirtySince) S.dirtySince = Date.now() }
     else S.dirtySince = 0
+    // 生病判定: 脏病(低洁净持续) / 着凉(低洁净掷骰); 闹肚子由零食在 act() 触发
+    if (S.stage === 'alive' && !S.sickType) {
+      if (S.dirtySince && Date.now() - S.dirtySince > SICK_MS) { S.sickType = 'dirty'; S.sickSince = Date.now(); log(`${S.name} 病倒了——太久没洗澡（洗澡除根，吃药救急）`); bubble('（阿嚏…浑身没力气…）', 12); bell(2) }
+      else if (S.clean < SICK_CHILL_BELOW && Math.random() < SICK_CHILL_P * SCALE / 3600) { S.sickType = 'chill'; S.sickSince = Date.now(); log(`${S.name} 着凉了——洗个热水澡，或吃点药`); bubble('（阿嚏！好像着凉了…）', 12) }
+    }
     // 自主漫游: 每 8-20s(游戏时)换个目标点
     if (S.stage === 'alive' && S.awake && Date.now() > wanderNext) {
       wanderTarget = Math.round((Math.random() * 2 - 1) * 6)
@@ -1176,7 +1214,9 @@ setInterval(() => {
     if (S.stage === 'alive') { // 异常死线计时维护(离线冻结, 弥留期暂停)
       S.heartSince = S.mood <= 0 ? (S.heartSince || Date.now()) : 0
       S.sickSince = isSick() ? (S.sickSince || Date.now()) : 0
-      S.obeseSince = S.weight >= fatLine() * 1.6 ? (S.obeseSince || Date.now()) : 0
+      const obeseNow = S.weight >= fatLine() * 1.6
+      if (obeseNow && !S.obeseSince) { S.obeseSince = Date.now(); log(`${S.name} 胖得喘不上气了——多陪它玩耍燃脂，能退线自救`); bubble('（呼哧呼哧…跑不动了…陪我玩玩消消食吧…）', 12) }
+      if (!obeseNow) S.obeseSince = 0
       S.exhaustSince = (S.awake && S.energy <= 0) ? (S.exhaustSince || Date.now()) : 0
     }
       recheckStage(0); if (!maybeBeg()) maybeTheater(); checkAchievements()
