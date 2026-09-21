@@ -48,6 +48,10 @@ const SCEN = [
   { name: 'adult-78', w: 78, over: { careScore: 40 }, keys: [], mark: ['成年', '[f'] },
   { name: 'elder-78', w: 78, over: { bornAt: now - 22 * D, hatchedAt: now - 22 * D + H }, keys: [], mark: ['暮年'] },
   { name: 'lowstats-78', w: 78, over: { clean: 10, dirtySince: now - 300_000, energy: 20, hunger: 25, thirst: 25, mood: 20 }, keys: [], mark: ['病'] },
+  // 闹肚子链路: 1h 内第 3 次零食 → 病 → 吃药痊愈(bath 无效场景走 ui-review 人工核)
+  { name: 'sick-upset-78', w: 78, over: { hunger: 50 }, keys: [[1200, '1'], [6600, '1'], [12000, '1'], [15000, 'd']], mark: ['把药吃了'], raw: ['闹肚子', '肚子好难受', '苦…但肚子舒服多了'] },
+  // 肥胖救援链路: 过线警告(🍰+指引气泡) → 玩耍燃脂退线(🔥 热度, 🍰 消失)
+  { name: 'obese-rescue-78', w: 78, over: { weight: 2.95, energy: 90, mood: 50 }, keys: [[2500, 'p']], mark: ['🔥'], raw: ['消消食', '🍰'] },
   { name: 'fat-78', w: 78, over: { weight: 2.2 }, keys: [], mark: ['超重'] },
   { name: 'dying-78', w: 78, over: { stage: 'dying', dyingSince: now, hunger: 0, thirst: 0, energy: 5, mood: 5 }, keys: [], mark: ['危急'] },
   { name: 'grave-78', w: 78, over: { stage: 'dead', diedAt: now - 121_000, deathCause: '寿终正寝', bornAt: now - 27 * D, hatchedAt: now - 26 * D, memorial: [{ name: '泡泡', species: 'slime', days: 26.9, cause: '寿终正寝', generation: 1 }] }, keys: [], mark: ['长眠', '迎接下一代'] },
