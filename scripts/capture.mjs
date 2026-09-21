@@ -44,7 +44,7 @@ const SEGMENTS = [
   { name: 'egg-select', ms: 6500, keys: [], state: { version: 1, stage: 'eggSelect' } },
   {
     name: 'main', ms: 12500,
-    keys: [[2200, 't'], [5200, 'f'], [8600, 'b']],
+    keys: [[2200, 't'], [5200, 'f'], [8600, 'b'], [10600, 'p']],
     state: alive({ species: 'slime', name: '小煤球', clean: 38, lastEventAt: now, lastBegAt: now }),
   },
   // 完整三局(2:0): rnd=0.7 → 龙固定出剪刀, 我方两记石头连胜; 覆盖 蓄势→亮牌→终局屏→胜利气泡
