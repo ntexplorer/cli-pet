@@ -14,7 +14,9 @@
 ## 代码地图（都在 pet.mjs）
 - 物种/像素：SPECIES、ART.<species>（字符串数组=像素画，调色键见 PAL）、RPS_TEND
 - 数值：DECAY（每小时衰减）、ACTIONS、CD（冷却，随 --fast 缩放）、拒绝阈值散在 act()
-  （洗澡 clean+45 且 饱腹-6/口渴-6；玩耍 心情+28 但 精力-15/饱腹-4/口渴-6/洁净-5）
+  （洗澡 clean+45 且 饱腹-6/口渴-6；玩耍 心情+28 但 精力-15/饱腹-4/口渴-6/洁净-5，且
+  燃脂 -0.2/次 + 运动热度叠层）；生病三来源 sickType：dirty=洁净<25 持续 1h ·
+  chill=洁净<30 每 h 20% 掷骰 · upset=滚动 1h 第 3 次零食（闹肚子仅吃药可治，dose 治一切）
 - 文案：ACHIEVEMENTS、CHAT_POOL/CHAT_COND、DEATHS、act() 内气泡
 - 猜拳动画：rpsThrow 只算分并设 S.rps.reveal={me,pet,res,final,at}；三相位渲染在
   renderRps/renderRpsReveal（晃拳 0-1s→亮牌 1-2.8s→终局屏 2.8-4.8s）；相位推进挂在
@@ -28,7 +30,7 @@
 
 ## 验证流程（提交前全过）
 1. node --check pet.mjs
-2. node scripts/scan.mjs —— 23 场景 VT 回归扫描（越界/同行互写/marker 缺失）全绿
+2. node scripts/scan.mjs —— 25 场景 VT 回归扫描（越界/同行互写/marker 缺失）全绿
 3. node pet.mjs --fast 全流程玩一遍
 4. PET_WIDTH=59 窄屏冒烟（59 列接近最小宽度红线，窄面板是常见形态）
 5. UI 改动 → 重截截图（管线见下）；用多模态视觉审查子代理核对（主会话模型无图像输入，
@@ -61,6 +63,12 @@
   如 饿=\u997f、饱=\u9971，打错会静默搜空）
 - 字符宽度口径：CJK=2/emoji=2（代理对按一码点）/U+00B7(·)=1，主流终端实测一致；
   冷门终端 East-Asian-Ambiguous 可能 ±1 格（按钮槽已留 +5 余量缓冲）
+- （2026-09-21 追加）Edge --screenshot 输出路径必须绝对路径：相对路径静默不落盘、
+  无任何报错——验真看 PNG LastWriteTime 是否为当前时刻，别信命令退出码
+- （2026-09-21 追加）游玩副本 https 远端可能连不上（SSH 正常）：等价升级 =
+  `git pull <开发仓路径> main` + `git fetch --tags <开发仓路径>`（同源同 SHA）
+- （2026-09-21 追加）FX 粒子/浮动元素行守卫：clamp 到 ≥3 行而非 skip——skip 会把整个
+  动画抹没（artTop=4 时 from:-4 算出 0-2 行全被跳过，GIF 里粒子直接消失）
 
 ## 发布
 - 验证过 → push main → tag vX.Y.Z → GitHub Actions 自动建 Release（附 pet.mjs/双 README）
@@ -79,21 +87,33 @@
   - 猜拳三相位揭示动画（晃拳→亮牌胜抬败暗→终局屏 2s）；顺带修 dragon 成年立绘与
     hint 行重叠、夜间星星打穿猜拳立绘、renderStats 头部"· 1"截断残段
   - scripts/scan.mjs 回归扫描器固化（23 场景）；素材全量重录（6 PNG + demo.gif）
+- v0.2.2 ✅（2026-09-21）：第二轮走测修复
+  - 撑死救赎：玩耍燃脂 -0.2/次 + 运动热度（10 分钟内连玩叠 1 层至多 3 层，体重衰减
+    +0.1×层/h，停玩 20 分钟恢复，🔥 角标）；过胖死线首触气泡指引。死线数值未动
+  - 生病重构（SAVE_VERSION 3，MIGRATIONS[2]: 旧 sickSince→dirty）：三来源=脏病
+    （洁净 15→25、2h→1h 放宽）+ 着凉（洁净<30 每 h 20% 掷骰）+ 闹肚子（滚动 1h 第
+    3 次零食，仅吃药可治）；dose 从"治标"改为"治一切"，README×2 同步
+  - 猜拳比分防剧透（reveal 暂存 prev 比分，晃拳期冻结、亮牌同步）；主界面角标加
+    文字标签（🏆 成就 · 🪦 纪念，热区宽度随文案）；FX 粒子行守卫 ≥3 行（修打穿
+    标题"存活x天"）；比分冒号紧凑化（N:N）；scan 新增 sick-upset/obese-rescue 共 25 场景
 - v0.3.0：i18n 英文（issue #1：MSG 目录 + t() + PET_LANG + L 键切换 + 首启按系统语言
-  检测；deathCause 中文串→key 需 SAVE_VERSION 3 迁移；README.md 保持英文默认）；
+  检测；deathCause 中文串→key 需 SAVE_VERSION 4 迁移——3 已被 v0.2.2 sickType 占用；
+  README.md 保持英文默认）；
   同版附带：版本号显示（VERSION 常量 + `--version` 打印即退 + 帮助面板角落显示，
   非交互 shell 误跑不再挂起）+ 双 clone 游玩 ritual 文档化（README×2：日常玩用
   独立 clone/发布件，升级=git pull；--save/--test 已论证不做，双 clone 即隔离）
 - v0.4.0：新物种 ×2
 
-## 接续指引（2026-09-17 第二场收工交接）
-- 现状：v0.2.1 已发版并验证（CI/Release 绿）；游玩副本（~/.config/cli-pet，`pet` 命令）
-  已升级到 v0.2.1，真宠存档无感迁移；开发工作流已定：**双 clone 即隔离**，
-  `--save`/`--test` 已论证不做（YAGNI），升级 ritual = 游玩目录 `git pull`
-- 遗留 P2 打磨（视觉审查提出，未做）：选蛋界面下半屏留白、帮助面板底注空档（原有
-  backlog）、help 键位列"1"字形 webfont 观感
-- v0.3.0 工作量评估：迄今最大一版（~250 串×2 语言、~150 调用点扫荡 + 英文声线
-  定调 + SAVE_VERSION 3 迁移），可拆 v0.3.0/v0.3.1 两批；第一步 = 全量字符串清单
-  + 10 条中英对照样例定英文声线（见上方路线图 v0.3.0 条目）
+## 接续指引（2026-09-21 第三场收工交接）
+- 现状：v0.2.2 已发版并验证（CI/Release 绿、三资产齐）；游玩副本（~/.config/cli-pet）
+  已升级至 v0.2.2（https 远端连不上，经本地开发仓 pull + fetch --tags 等价升级），真档
+  下次启动自动迁移 SAVE_VERSION 3（旧 sickSince→sickType='dirty'，无感）
+- v0.3.0 两个注意：① deathCause 迁移用 SAVE_VERSION 4（3 已占用）；② v0.2.2 新增文案
+  （闹肚子/着凉/燃脂/运动热度/角标标签）记得纳入 i18n 字符串清单
+- 遗留 P2 打磨（视觉审查提出，未做）：选蛋界面下半屏留白、帮助面板底注空档、help
+  键位列"1"字形 webfont 观感、墓碑态仍渲染全部互动按钮（应置灰/隐藏，仅 [f] 有效）
+- v0.3.0 工作量评估：迄今最大一版（~250 串×2 语言、~150 调用点 + 英文声线定调 +
+  SAVE_VERSION 4 迁移），可拆 v0.3.0/v0.3.1 两批；第一步 = 全量字符串清单 + 10 条
+  中英对照样例定英文声线（见上方路线图 v0.3.0 条目）
 - 其他终端接续：`git pull` → 读本文件 → `/start-day` 盘点 → 下一步 v0.3.0 i18n
   （注意：scan.mjs 的 marker 是中文，i18n 后要补英文对照）
