@@ -52,6 +52,8 @@ const SCEN = [
   { name: 'sick-upset-78', w: 78, over: { hunger: 50 }, keys: [[1200, '1'], [6600, '1'], [12000, '1'], [15000, 'd']], mark: ['把药吃了'], raw: ['闹肚子', '肚子好难受', '苦…但肚子舒服多了'] },
   // 单项归零死线: 口渴 0 → 响铃+气泡+💧 角标倒计时(v0.2.3 渴死机制)
   { name: 'zero-thirst-78', w: 78, over: { thirst: 0 }, keys: [], mark: ['💧'], raw: ['嗓子干得'] },
+  // 参差双零倒挂修复: 弥留中单零死线照走 — thirst 死线 2s 到, 先于 30s 弥留, 12s 末帧应已长眠(未修则还弥留)
+  { name: 'stagger-zero-78', w: 78, over: { stage: 'dying', dyingSince: now - 30_000, thirstSince: now - 118_000, hunger: 0, thirst: 0 }, ms: 12_000, keys: [], mark: ['长眠'] },
   // 肥胖救援链路: 过线警告(🍰+指引气泡) → 玩耍燃脂退线(🔥 热度, 🍰 消失)
   { name: 'obese-rescue-78', w: 78, over: { weight: 2.95, energy: 90, mood: 50 }, keys: [[2500, 'p']], mark: ['🔥'], raw: ['消消食', '🍰'] },
   { name: 'fat-78', w: 78, over: { weight: 2.2 }, keys: [], mark: ['超重'] },
