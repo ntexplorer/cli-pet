@@ -19,7 +19,8 @@
   upset=饱腹≥40 仍投喂（喂食/零食共用 feedLog）滚动 1h 第 3 次（闹肚子仅吃药可治，dose 治一切）
 - 死线：单零直死（thirstSince/hungerSince 归零起 2h →"饥饿与干渴"，zeroSince 起算响铃一次）+
   六条计时 heartSince/sickSince/obeseSince/exhaustSince/thirstSince/hungerSince；双 0 →
-  弥留 DYING_GRACE_H=1h（全衰竭 ÷4）；五维血条 <25 变红（bar() 第 5 参 low）
+  弥留 DYING_GRACE_H=1h（全衰竭 ÷4）；弥留期死线照走取 min（参差双零不比单零死得慢）；
+  五维血条 <25 变红（bar() 第 5 参 low，0 格时数字染红兜底）
 - 文案：ACHIEVEMENTS、CHAT_POOL/CHAT_COND、DEATHS、act() 内气泡
 - 猜拳动画：rpsThrow 只算分并设 S.rps.reveal={me,pet,res,final,at}；三相位渲染在
   renderRps/renderRpsReveal（晃拳 0-1s→亮牌 1-2.8s→终局屏 2.8-4.8s）；相位推进挂在
@@ -33,7 +34,7 @@
 
 ## 验证流程（提交前全过）
 1. node --check pet.mjs
-2. node scripts/scan.mjs —— 26 场景 VT 回归扫描（越界/同行互写/marker 缺失）全绿
+2. node scripts/scan.mjs —— 27 场景 VT 回归扫描（越界/同行互写/marker 缺失）全绿
 3. node pet.mjs --fast 全流程玩一遍
 4. PET_WIDTH=59 窄屏冒烟（59 列接近最小宽度红线，窄面板是常见形态）
 5. UI 改动 → 重截截图（管线见下）；用多模态视觉审查子代理核对（主会话模型无图像输入，
@@ -107,7 +108,11 @@
     不可见；闹肚子 v2：feedLog 喂食/零食共用、饱腹≥40 才计数（救命/回应乞食豁免，
     修"归来连喂三口必病"），第 3 次必中
   - 燃脂 -0.2→-0.1/次（零食 +0.25 vs 燃脂 -0.1，贪嘴略胜懒惰；基础代谢 -0.1/h 不变）；
-    scan 新增 zero-thirst 共 26 场景；SAVE_VERSION 保持 3（新字段 defaultState 合并兜底）
+    scan 新增 zero-thirst；SAVE_VERSION 保持 3（新字段 defaultState 合并兜底）
+  - 发版后对抗审查补修：参差双零倒挂（第二维归零落在首维 [1h,2h) 窗口时弥留 1h 使总命
+    超单零 2h）→ recheckStage dying 分支死亡取 min(弥留期限, 最早死线)，死因随线；
+    README×2 特性段"弥留 4 小时"残留改 1 小时；血条 0 格变红不可见 → 数字同步染红；
+    scan 新增 stagger-zero（负向验证：旧代码 FAIL 确认场景真抓回归）共 27 场景
 - v0.3.0：互动版（走测反馈"机制单薄，尤其互动"）：性格系统（黏人/活泼/贪吃三维由
   累计 stats÷存活天数派生，影响乞讨节流/RPS_TEND/摸摸反应/闲聊选池，跨代 ±15 漂移）·
   生物钟问候（13-14 午睡窗困倦气泡、22:30 睡前剧场池、每日首启晨间问候、归来按时长
@@ -123,11 +128,15 @@
 - v0.5.0：新物种 ×2
 
 ## 接续指引（2026-10-07 v0.2.3 收工交接）
-- 现状：v0.2.3 已实施完毕（渴/饿单零死线、删着凉、闹肚子 v2 饱腹≥40 计数、燃脂 -0.1、
-  血条 <25 变红、弥留 1h；pet.mjs/README×2/scan 26 场景/本文件同步）。SAVE_VERSION
+- 现状：v0.2.3 已实施完毕+发版后对抗审查补修（渴/饿单零死线、删着凉、闹肚子 v2
+  饱腹≥40 计数、燃脂 -0.1、血条 <25 变红含 0 值数字染红、弥留 1h、参差双零取 min；
+  pet.mjs/README×2/scan 27 场景/本文件同步）。SAVE_VERSION
   保持 3——feedLog/thirstSince/hungerSince 走 defaultState 合并兜底，旧档无感
 - v0.3.0 互动版已批准（方案见路线图），5 机制各自独立提交（feat(pet)），scan 每机制
   加场景；性格系统的派生数据先只做展示（stats 页），行为影响逐步接入
+- 走测观测项：零食是玩耍外主要心情渠道（+12、CD 5min），滚动 1h 第 3 次必病+吃药
+  -20 心情，高频玩家可能陷入"病-药"循环——v0.3.0 期间观测发病率，超标再调
+  （候选：病中零食心情收益减半/闹肚子只惩罚连续第 3 次）
 - i18n 顺延为 v0.4.0：deathCause 迁移用 SAVE_VERSION 4（3 已占用）；v0.2.3 新增文案
   （渴/饿归零气泡、闹肚子新文案）连同 v0.2.2 的（燃脂/运动热度/角标标签）一起纳入清单
 - 遗留 P2 打磨（视觉审查提出，未做）：选蛋界面下半屏留白、帮助面板底注空档、help
