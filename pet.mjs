@@ -263,7 +263,9 @@ function moodCap() {
 function dropEntity(k) {
   const mine = S.entities.filter(e => e.k === k)
   if (mine.length >= 2) S.entities.splice(S.entities.indexOf(mine[0]), 1) // 同类至多 2: 最旧的先风化
-  S.entities.push({ k, col: (Math.random() < 0.5 ? -1 : 1) * (10 + ((Math.random() * 7) | 0)), at: Date.now() }) // col=相对中轴偏移, 落在立绘两侧空地
+  const gs = grownStage(), fr = ART[S.species]?.[gs === 'elder' ? 'adult' : gs]?.[0] // 与 render 同口径取帧(胖补边不改宽度)
+  const half = Math.max(8, Math.ceil((fr ? fr.length : 16) / 2))
+  S.entities.push({ k, col: (Math.random() < 0.5 ? -1 : 1) * (half + 3 + ((Math.random() * 5) | 0)), at: Date.now() }) // col=相对中轴偏移, 立绘半宽+漫游余量外落地
   if (k === 'poop') log(`${S.name} 在角落里拉了一小坨…下次洗澡时会一起清扫`)
 }
 function renderFloorDirt(bottomRow) { // 实体贴立绘底行(画布层): 立绘漫游路过会暂时遮挡, 走开重现
@@ -271,7 +273,7 @@ function renderFloorDirt(bottomRow) { // 实体贴立绘底行(画布层): 立�
   for (const e of S.entities) {
     const c = mid + e.col
     if (c < 2 || c > TERM_W - 2) continue // 极窄屏越界守卫
-    at(bottomRow, c, e.k === 'poop' ? fg(150, 105, 70) + '◍' + R : fg(230, 190, 90) + '.' + R)
+    at(bottomRow, c, e.k === 'poop' ? fg(205, 140, 85) + '◍' + R : fg(230, 190, 90) + '.' + R) // 棕色提亮: 原色阶在深底上几乎不可见
   }
 }
 function fatLine() { return SPECIES[S.species]?.baseWeight * 1.5 || 3 }
@@ -770,7 +772,7 @@ function bar(label, v, color, extra = '', low = false) {
 }
 const hotButtons = [] // {row, c0, c1, kind}
 const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t', toggleHelp: '?', rps: 'g', rps1: '1', rps2: '2', rps3: '3', chat: 'c' }
-function buttonBar(row) {
+function buttonBar(row, ov = {}) { // ov.only=仅渲染这些动作(墓碑态); ov.label=标签覆盖
   let defs = [
     ['f', '喂食', 'feed'], ['1', '零食', 'snack'], ['w', '喂水', 'water'], ['b', '洗澡', 'bath'],
     ['p', '玩耍', 'play'], ['s', '睡觉', 'sleepToggle'], ['t', '摸摸', 'touch'], ['d', '吃药', 'dose'],
@@ -778,10 +780,12 @@ function buttonBar(row) {
     ['r', '重置', 'reset'], ['q', '退出', 'quit'],
   ]
   if (S.named) defs = defs.filter(d => d[2] !== 'rename') // 起名一次性, 定名后收起
+  if (ov.only) defs = defs.filter(d => ov.only.includes(d[2]))
+  if (ov.label) defs = defs.map(([k, l, kind]) => [k, ov.label[kind] || l, kind])
   // 窄档(<68 列, 约 30% 分屏)单字标签: 58 列下 5 个/行 → 13 键 3 行, 不再挤占日志行; 全称见 ? 帮助
   if (TERM_W < 68) {
     const short = { feed: '饭', snack: '食', water: '水', bath: '澡', play: '玩', sleepToggle: '睡', touch: '摸', dose: '药', rps: '拳', chat: '聊', rename: '名', reset: '重', quit: '退' }
-    defs = defs.map(([k, , kind]) => [k, short[kind], kind])
+    defs = defs.map(([k, l, kind]) => [k, (ov.label && ov.label[kind]) || short[kind], kind])
   }
   const gap = TERM_W < 66 ? 0 : 1
   // 固定槽位(基宽+冷却后缀余量): 倒计时逐秒变化不挤动后续按钮
@@ -1044,8 +1048,8 @@ function renderGrave() {
   const dIcon = DEATHS.find(x => x.cause === S.deathCause)
   center(14, `死因: ${dIcon ? dIcon.icon + ' ' + dIcon.name : S.deathCause} · 共存活 ${livedDays(S).toFixed(1)} 天`, dim)
   if (mournLeft > 0) center(16, `守灵中… ${fmtDur(mournLeft)} 后可重新孵蛋（按 f）`, fg(150, 150, 160))
-  else center(16, '按 f 或点击 [f 喂食] 迎接下一代', fg(255, 200, 120))
-  buttonBar(23)
+  else center(16, '按 f 或点击 [f 下一代] 迎接下一代', fg(255, 200, 120))
+  buttonBar(23, { only: ['feed', 'reset', 'quit'], label: { feed: '下一代' } }) // 墓碑态仅留有效键, 不再全亮误导
 }
 // 数据面板(Tab): 生涯统计 + 成就进度 + 纪念墙 + 全量日志
 function renderStats() {
@@ -1074,7 +1078,7 @@ function renderStats() {
   ACHIEVEMENTS.forEach((a, i) => {
     const got = S.achievements.includes(a.id)
     const txt = `${a.icon} ${a.name}  ${a.desc}${got ? '' : a.prog ? `  ${a.prog(S)}` : ''}`
-    at(10 + i, 3, (got ? fg(255, 220, 120) : dim) + dSlice(txt, TERM_W - 5) + R)
+    at(10 + i, 3, (got ? fg(255, 220, 120) : dim) + dSlice(txt, twoCol ? 40 : TERM_W - 5) + R) // 两栏时钳到右栏(44)前, 防成就行侵入图鉴/家族树
   })
   if (twoCol) {
     // 右栏: 图鉴 rows 3-9 + 纪念墙 rows 11-14
@@ -1133,7 +1137,7 @@ function renderHelp() {
     ['1', '零食', '开心，但容易胖'],
     ['w', '喂水', '渴了就要喝'],
     ['b', '洗澡', '去污治脏病（除根）；洗完微饿微渴'],
-    ['d', '吃药', '生病时救急（治标）'],
+      ['d', '吃药', '生病时救急（治一切，含闹肚子）'],
     ['s', '睡觉', '恢复精力，再按一次叫醒'],
     ['', '— 陪伴 —', ''],
     ['t', '摸摸', '也可以直接点它（每小时前几次有效）'],
