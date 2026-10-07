@@ -50,6 +50,8 @@ const SCEN = [
   { name: 'lowstats-78', w: 78, over: { clean: 10, dirtySince: now - 300_000, energy: 20, hunger: 25, thirst: 25, mood: 20 }, keys: [], mark: ['病'] },
   // 闹肚子链路: 1h 内第 3 次零食 → 病 → 吃药痊愈(bath 无效场景走 ui-review 人工核)
   { name: 'sick-upset-78', w: 78, over: { hunger: 50 }, keys: [[1200, '1'], [6600, '1'], [12000, '1'], [15000, 'd']], mark: ['把药吃了'], raw: ['闹肚子', '肚子好难受', '苦…但肚子舒服多了'] },
+  // 单项归零死线: 口渴 0 → 响铃+气泡+💧 角标倒计时(v0.2.3 渴死机制)
+  { name: 'zero-thirst-78', w: 78, over: { thirst: 0 }, keys: [], mark: ['💧'], raw: ['嗓子干得'] },
   // 肥胖救援链路: 过线警告(🍰+指引气泡) → 玩耍燃脂退线(🔥 热度, 🍰 消失)
   { name: 'obese-rescue-78', w: 78, over: { weight: 2.95, energy: 90, mood: 50 }, keys: [[2500, 'p']], mark: ['🔥'], raw: ['消消食', '🍰'] },
   { name: 'fat-78', w: 78, over: { weight: 2.2 }, keys: [], mark: ['超重'] },

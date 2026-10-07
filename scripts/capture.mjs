@@ -35,7 +35,7 @@ const career = {
   ],
 }
 const alive = over => ({
-  ...career, stage: 'alive', awake: true, named: true, careScore: 8,
+  ...career, stage: 'alive', awake: true, named: true, careScore: 8, helpHinted: true,
   hunger: 45, thirst: 55, clean: 40, mood: 62, energy: 70, weight: 1.25,
   bornAt: now - 2 * D, hatchedAt: now - 2 * D + 3600_000, lastSeen: now, diedAt: 0, deathCause: '', ...over,
 })
@@ -46,6 +46,11 @@ const SEGMENTS = [
     name: 'main', ms: 12500,
     keys: [[2200, 't'], [5200, 'f'], [8600, 'b'], [10600, 'p']],
     state: alive({ species: 'slime', name: '小煤球', clean: 38, lastEventAt: now, lastBegAt: now }),
+  },
+  // v0.2.3 低状态告警: 口渴归零 → 响铃+气泡+💧 死线角标倒计时, 五维血条 <25 变红
+  {
+    name: 'alarm', ms: 8000, keys: [],
+    state: alive({ species: 'slime', name: '小煤球', hunger: 35, thirst: 0, clean: 30, mood: 40, energy: 55 }),
   },
   // 完整三局(2:0): rnd=0.7 → 龙固定出剪刀, 我方两记石头连胜; 覆盖 蓄势→亮牌→终局屏→胜利气泡
   {
