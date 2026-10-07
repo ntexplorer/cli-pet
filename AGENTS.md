@@ -15,8 +15,11 @@
 - 物种/像素：SPECIES、ART.<species>（字符串数组=像素画，调色键见 PAL）、RPS_TEND
 - 数值：DECAY（每小时衰减）、ACTIONS、CD（冷却，随 --fast 缩放）、拒绝阈值散在 act()
   （洗澡 clean+45 且 饱腹-6/口渴-6；玩耍 心情+28 但 精力-15/饱腹-4/口渴-6/洁净-5，且
-  燃脂 -0.2/次 + 运动热度叠层）；生病三来源 sickType：dirty=洁净<25 持续 1h ·
-  chill=洁净<30 每 h 20% 掷骰 · upset=滚动 1h 第 3 次零食（闹肚子仅吃药可治，dose 治一切）
+  燃脂 -0.1/次 + 运动热度叠层）；生病两来源 sickType：dirty=洁净<25 持续 1h ·
+  upset=饱腹≥40 仍投喂（喂食/零食共用 feedLog）滚动 1h 第 3 次（闹肚子仅吃药可治，dose 治一切）
+- 死线：单零直死（thirstSince/hungerSince 归零起 2h →"饥饿与干渴"，zeroSince 起算响铃一次）+
+  六条计时 heartSince/sickSince/obeseSince/exhaustSince/thirstSince/hungerSince；双 0 →
+  弥留 DYING_GRACE_H=1h（全衰竭 ÷4）；五维血条 <25 变红（bar() 第 5 参 low）
 - 文案：ACHIEVEMENTS、CHAT_POOL/CHAT_COND、DEATHS、act() 内气泡
 - 猜拳动画：rpsThrow 只算分并设 S.rps.reveal={me,pet,res,final,at}；三相位渲染在
   renderRps/renderRpsReveal（晃拳 0-1s→亮牌 1-2.8s→终局屏 2.8-4.8s）；相位推进挂在
@@ -30,7 +33,7 @@
 
 ## 验证流程（提交前全过）
 1. node --check pet.mjs
-2. node scripts/scan.mjs —— 25 场景 VT 回归扫描（越界/同行互写/marker 缺失）全绿
+2. node scripts/scan.mjs —— 26 场景 VT 回归扫描（越界/同行互写/marker 缺失）全绿
 3. node pet.mjs --fast 全流程玩一遍
 4. PET_WIDTH=59 窄屏冒烟（59 列接近最小宽度红线，窄面板是常见形态）
 5. UI 改动 → 重截截图（管线见下）；用多模态视觉审查子代理核对（主会话模型无图像输入，
@@ -96,24 +99,38 @@
   - 猜拳比分防剧透（reveal 暂存 prev 比分，晃拳期冻结、亮牌同步）；主界面角标加
     文字标签（🏆 成就 · 🪦 纪念，热区宽度随文案）；FX 粒子行守卫 ≥3 行（修打穿
     标题"存活x天"）；比分冒号紧凑化（N:N）；scan 新增 sick-upset/obese-rescue 共 25 场景
-- v0.3.0：i18n 英文（issue #1：MSG 目录 + t() + PET_LANG + L 键切换 + 首启按系统语言
+- v0.2.3 ✅（2026-10-07）：第三轮走测修复
+  - 渴死/饿死：口渴或饱腹单项归零起 2h 直死"饥饿与干渴"（原双 0 才进弥留、单渴归零无
+    报警）；归零瞬间 zeroSince 响铃+气泡一次、💧/🍚 角标倒计时、五维血条 <25 变红
+  - 弥留 4h→1h（全衰竭 ÷4=15min，消除"单零 2h 比双零 4h 死得慢"倒挂）
+  - 删着凉（sickType 只剩 dirty/upset）：原洁净<30 掷骰窗口被洗澡习惯物理封死，玩家
+    不可见；闹肚子 v2：feedLog 喂食/零食共用、饱腹≥40 才计数（救命/回应乞食豁免，
+    修"归来连喂三口必病"），第 3 次必中
+  - 燃脂 -0.2→-0.1/次（零食 +0.25 vs 燃脂 -0.1，贪嘴略胜懒惰；基础代谢 -0.1/h 不变）；
+    scan 新增 zero-thirst 共 26 场景；SAVE_VERSION 保持 3（新字段 defaultState 合并兜底）
+- v0.3.0：互动版（走测反馈"机制单薄，尤其互动"）：性格系统（黏人/活泼/贪吃三维由
+  累计 stats÷存活天数派生，影响乞讨节流/RPS_TEND/摸摸反应/闲聊选池，跨代 ±15 漂移）·
+  生物钟问候（13-14 午睡窗困倦气泡、22:30 睡前剧场池、每日首启晨间问候、归来按时长
+  分档）· 画布生活感（投喂掉碎屑/便便实体至多 2、每实体洁净衰减 +3/h、洗澡顺带清扫）·
+  离线小日记（归来 >30min 按时长分档"你不在时它做了什么"）· 家庭树页（renderStats
+  世代链+死法图鉴对照）——每机制一个 feat(pet)+scan 场景；超时砍序：家庭树→日记
+- v0.4.0：i18n 英文（issue #1：MSG 目录 + t() + PET_LANG + L 键切换 + 首启按系统语言
   检测；deathCause 中文串→key 需 SAVE_VERSION 4 迁移——3 已被 v0.2.2 sickType 占用；
   README.md 保持英文默认）；
   同版附带：版本号显示（VERSION 常量 + `--version` 打印即退 + 帮助面板角落显示，
   非交互 shell 误跑不再挂起）+ 双 clone 游玩 ritual 文档化（README×2：日常玩用
   独立 clone/发布件，升级=git pull；--save/--test 已论证不做，双 clone 即隔离）
-- v0.4.0：新物种 ×2
+- v0.5.0：新物种 ×2
 
-## 接续指引（2026-09-21 第三场收工交接）
-- 现状：v0.2.2 已发版并验证（CI/Release 绿、三资产齐）；游玩副本（~/.config/cli-pet）
-  已升级至 v0.2.2（https 远端连不上，经本地开发仓 pull + fetch --tags 等价升级），真档
-  下次启动自动迁移 SAVE_VERSION 3（旧 sickSince→sickType='dirty'，无感）
-- v0.3.0 两个注意：① deathCause 迁移用 SAVE_VERSION 4（3 已占用）；② v0.2.2 新增文案
-  （闹肚子/着凉/燃脂/运动热度/角标标签）记得纳入 i18n 字符串清单
+## 接续指引（2026-10-07 v0.2.3 收工交接）
+- 现状：v0.2.3 已实施完毕（渴/饿单零死线、删着凉、闹肚子 v2 饱腹≥40 计数、燃脂 -0.1、
+  血条 <25 变红、弥留 1h；pet.mjs/README×2/scan 26 场景/本文件同步）。SAVE_VERSION
+  保持 3——feedLog/thirstSince/hungerSince 走 defaultState 合并兜底，旧档无感
+- v0.3.0 互动版已批准（方案见路线图），5 机制各自独立提交（feat(pet)），scan 每机制
+  加场景；性格系统的派生数据先只做展示（stats 页），行为影响逐步接入
+- i18n 顺延为 v0.4.0：deathCause 迁移用 SAVE_VERSION 4（3 已占用）；v0.2.3 新增文案
+  （渴/饿归零气泡、闹肚子新文案）连同 v0.2.2 的（燃脂/运动热度/角标标签）一起纳入清单
 - 遗留 P2 打磨（视觉审查提出，未做）：选蛋界面下半屏留白、帮助面板底注空档、help
   键位列"1"字形 webfont 观感、墓碑态仍渲染全部互动按钮（应置灰/隐藏，仅 [f] 有效）
-- v0.3.0 工作量评估：迄今最大一版（~250 串×2 语言、~150 调用点 + 英文声线定调 +
-  SAVE_VERSION 4 迁移），可拆 v0.3.0/v0.3.1 两批；第一步 = 全量字符串清单 + 10 条
-  中英对照样例定英文声线（见上方路线图 v0.3.0 条目）
-- 其他终端接续：`git pull` → 读本文件 → `/start-day` 盘点 → 下一步 v0.3.0 i18n
+- 其他终端接续：`git pull` → 读本文件 → `/start-day` 盘点 → 下一步 v0.3.0 互动版
   （注意：scan.mjs 的 marker 是中文，i18n 后要补英文对照）
