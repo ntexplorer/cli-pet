@@ -161,5 +161,15 @@
   （120s 超时才被杀、还会写 state.json）——只读源码用 fs.readFileSync，别 import；
   ui-reviewer 子代理 bash 白名单仅放行 msedge/playwright（无文件写入），需要裁切
   放大复核的项在主会话做
+- scan 盲区追加：晨问/午睡/睡前剧场走真实时钟（不随 --fast），scan 不可测——由
+  return-greet 场景覆盖归来分档路径，晨午睡以 code review+日常冒烟兜底（时钟注入
+  接口非零依赖方案，待 v0.4.0 再议）
+- 数值口径备注：实体洁净 +3/h×至多2 是新增常规衰减通道（与"洗澡 clean+45 且
+  饱腹-6"同级），非死亡/生病/离线托底红线；患脏病路径不变（洁净<25 持续 1h），
+  只是脏得更快——玩家可见可应对（洗澡可清扫），不构成"程序不跑不会死"破坏
+  （离线不计入，冻结平移）
+- 发版验真硬门：tag push 后必须 `git ls-remote --tags origin` + `gh release view
+  vX.Y.Z` 双验输出；AGENTS"已发版"声明须在验真之后写（本轮曾被对抗审查抓出
+  先写完成态、tag 未打的顺序瑕疵）
 - 其他终端接续：`git pull` → 读本文件 → `/start-day` 盘点 → 下一步 v0.4.0 i18n
   （注意：scan.mjs 的 marker 是中文，i18n 后要补英文对照）
