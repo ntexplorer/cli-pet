@@ -32,10 +32,8 @@ const SPECIES = {
 // 每小时衰减 — 按 8h 工作日挂机调校: 每 25-30 分钟有一件事可做
 const DECAY = { hunger: 20, thirst: 26, clean: 11, mood: 18, weight: 0.1 }
 const SICK_AFTER_DIRTY_H = 1       // 洁净<SICK_DIRTY 持续 1h → 脏病
-const SICK_DIRTY = 25              // 脏病警戒线(低于开始计时); 着凉掷骰线在 30
-const SICK_CHILL_BELOW = 30        // 洁净低于此每游戏小时 20% 掷骰着凉
-const SICK_CHILL_P = 0.2
-const DYING_GRACE_H = 4            // 饱腹&口渴双 0 → 弥留 4h(全衰竭压缩至 1h)
+const SICK_DIRTY = 25              // 脏病警戒线(低于开始计时, 持续 1h 病倒)
+const DYING_GRACE_H = 1            // 饱腹&口渴双 0 → 弥留 1h(全衰竭压缩至 15min); 单项归零 2h 直死见 DEATH_MS
 const MOURN_H = 2                  // 死亡后守灵
 const OFFLINE_DECAY_CAP_H = 48     // 离线衰减封顶（离线不致死，数值另有托底）
 const HATCH_MIN = 3                // 蛋孵化分钟
@@ -169,8 +167,8 @@ function defaultState() {
     generation: 1,
     hunger: 80, thirst: 80, clean: 80, mood: 80, energy: 80,
     weight: 0, awake: true,
-    dirtySince: 0, dyingSince: 0, diedAt: 0, deathCause: '', sickType: '', // ''|dirty(脏)|chill(着凉)|upset(闹肚子)
-    heartSince: 0, sickSince: 0, obeseSince: 0, exhaustSince: 0, // 四条异常死线计时(离线冻结)
+    dirtySince: 0, dyingSince: 0, diedAt: 0, deathCause: '', sickType: '', // ''|dirty(脏)|upset(闹肚子)
+    heartSince: 0, sickSince: 0, obeseSince: 0, exhaustSince: 0, thirstSince: 0, hungerSince: 0, // 六条异常死线计时(离线冻结)
     careScore: 0,
     stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0, rps: 0, chat: 0 },
     achievements: [],
@@ -178,7 +176,7 @@ function defaultState() {
     log: [],                   // 最近事件 [{t,text}]
     lastAct: {}, named: false, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, helpHinted: false, // bubble {text, until}; helpHinted 孵化后 ? 提示只播一次
     touchLog: [],              // 摸摸时间戳(滚动1h窗口, 防白嫖心情)
-    snackLog: [],              // 零食时间戳(滚动1h窗口, 第3次闹肚子)
+    feedLog: [],               // 投喂时间戳(饱腹≥40 才记; 滚动1h窗口第3次闹肚子); 旧档 snackLog 弃用不清读
     metaLv: 0, metaUntil: 0,   // 运动热度: 连续玩耍叠层提代谢, 停玩一段时间恢复原值
     rps: null,                 // 猜拳进行中 {me, pet, round}
   }
@@ -204,6 +202,12 @@ function log(text) {
 }
 function bubble(text, sec = 8) { S.bubble = { text, until: Date.now() + sec * 1000 } }
 function bell(n = 1) { for (let i = 0; i < n; i++) process.stdout.write(ansi.bell) }
+function zeroSince(on, prev, msg) { // 单项归零死线起算; 归零瞬间响铃+气泡提一次(停留零值不重复响, 治愈不闹腾)
+  if (!on) return 0
+  if (prev) return prev
+  bell(2); bubble(msg, 12)
+  return Date.now()
+}
 
 // ---------- 时间引擎 ----------
 const H = 3600000
@@ -214,7 +218,7 @@ const HATCH_MS = HATCH_MIN * 60000 / SCALE
 const GRACE_MS = DYING_GRACE_H * H / SCALE
 const MOURN_MS = MOURN_H * H / SCALE
 const SICK_MS = SICK_AFTER_DIRTY_H * H / SCALE
-const DEATH_MS = 2 * H / SCALE   // 异常状态死线(心碎/病/肥胖/精竭): 2h
+const DEATH_MS = 2 * H / SCALE   // 异常状态死线(心碎/干渴/饥饿/重病/肥胖/精竭): 2h
 const LIFESPAN_DAYS = 30         // 寿终正寝(荣誉死法)
 // 动作冷却(毫秒, 测试档同步加速); 配合阈值拒绝防狂点 — 数值健康时动作同样会被拒绝
 const CD = { feed: 90e3, water: 90e3, snack: 300e3, bath: 600e3, play: 180e3, touch: 60e3, dose: 180e3, rps: 180e3, chat: 60e3 }
@@ -253,7 +257,7 @@ function moodCap() {
 function fatLine() { return SPECIES[S.species]?.baseWeight * 1.5 || 3 }
 function thinLine() { return SPECIES[S.species]?.baseWeight * 0.6 || 1 }
 // 挂在 state 上的便捷方法用函数替代
-function isSick() { return !!S.sickType } // dirty=脏病 chill=着凉 upset=闹肚子(零食); 触发见 tick/act
+function isSick() { return !!S.sickType } // dirty=脏病(不洗澡) upset=闹肚子(贪嘴); 触发见 tick/act
 
 // 离线补算: 挂机玩具语义 — 离线不致死, 数值托底; 只有开着 pane 时才会饿死
 function catchUp() {
@@ -271,7 +275,7 @@ function catchUp() {
   // 弥留/生病/异常死线计时离线冻结: 倒计时只在开着时走
   if (stage0 === 'dying') S.dyingSince += dt
   if (S.dirtySince) S.dirtySince += dt
-  for (const k of ['heartSince', 'sickSince', 'obeseSince', 'exhaustSince']) if (S[k]) S[k] += dt
+  for (const k of ['heartSince', 'sickSince', 'obeseSince', 'exhaustSince', 'thirstSince', 'hungerSince']) if (S[k]) S[k] += dt
   // 蛋孵化推进
   if (S.stage === 'egg') {
     const need = HATCH_MS
@@ -291,12 +295,14 @@ const DEATHS = [
   { icon: '⚡', name: '意外猝死', cause: '意外猝死' },
   { icon: '⭐', name: '寿终正寝', cause: '寿终正寝' },
 ]
-// 四条异常死线: 持续 2h 未解除 → 各自死法; 返回活跃死线角标(渲染用)
+// 六条异常死线: 持续 2h 未解除 → 各自死法; 返回活跃死线角标(渲染用)
 function deathTimers() {
   const now = Date.now(), out = []
   if (S.stage === 'dying') out.push({ icon: '🥀', left: S.dyingSince + (S.energy <= 5 && S.mood <= 5 ? GRACE_MS / 4 : GRACE_MS) - now, name: '弥留' })
   if (S.stage !== 'alive' && S.stage !== 'dying') return out
   if (S.heartSince) out.push({ icon: '💔', left: S.heartSince + DEATH_MS - now, name: '心碎' })
+  if (S.thirstSince) out.push({ icon: '💧', left: S.thirstSince + DEATH_MS - now, name: '干渴' })
+  if (S.hungerSince) out.push({ icon: '🍚', left: S.hungerSince + DEATH_MS - now, name: '饥饿' })
   if (S.sickSince) out.push({ icon: '🤒', left: S.sickSince + DEATH_MS - now, name: '重病' })
   if (S.obeseSince) out.push({ icon: '🍰', left: S.obeseSince + DEATH_MS - now, name: '肥胖' })
   if (S.exhaustSince) out.push({ icon: '⚡', left: S.exhaustSince + DEATH_MS - now, name: '精竭' })
@@ -312,6 +318,8 @@ function recheckStage(dt = 0) {
     } else {
       // 异常死线判定: 先到先死
       if (S.heartSince && now - S.heartSince >= DEATH_MS) return die('心碎而亡')
+      if (S.thirstSince && now - S.thirstSince >= DEATH_MS) return die('饥饿与干渴')
+      if (S.hungerSince && now - S.hungerSince >= DEATH_MS) return die('饥饿与干渴')
       if (S.sickSince && now - S.sickSince >= DEATH_MS) return die('病入膏肓')
       if (S.obeseSince && now - S.obeseSince >= DEATH_MS) return die('撑死的')
       if (S.exhaustSince && now - S.exhaustSince >= DEATH_MS) return die('意外猝死')
@@ -347,6 +355,17 @@ function grownStage() { return isElder() ? 'elder' : S.careScore >= GROW_CARE ? 
 
 // ---------- 动作 ----------
 function clamp(v, a = 0, b = 100) { return Math.max(a, Math.min(b, v)) }
+function noteFeed() { // 投喂记次(喂食/零食共用): 饱腹≥40 的"不饿还喂"才计数 — 救命/回应乞食的投喂豁免; 滚动1h第3次 → 闹肚子
+  const hourAgo = Date.now() - 3600000 / SCALE
+  S.feedLog = (S.feedLog || []).filter(t => t > hourAgo)
+  if (S.hunger >= 40) S.feedLog.push(Date.now()) // 判定必须在饱腹数值变化之前(取喂前值)
+  if (!isSick() && S.feedLog.length >= 3) {
+    S.sickType = 'upset'; S.sickSince = Date.now(); S.dirtySince = 0
+    log(`${S.name} 吃太急，闹肚子了！（吃点药吧）`); bubble('（咕噜噜…肚子好难受…）', 12)
+    return true
+  }
+  return false
+}
 function act(kind) {
   if (S.stage === 'eggSelect') return
   if (S.stage === 'dead') { if (kind === 'feed' && Date.now() - S.diedAt >= MOURN_MS) newEgg(); return }
@@ -367,22 +386,17 @@ function act(kind) {
       if (S.thirst < 20) { bubble('口太干了，先喝点水吧…'); break }
       const base = isElder() ? 22 : 32 // 暮年胃口变小
       const gain = sick ? Math.round(base / 2) : base
+      const upset = noteFeed() // 记次在饱腹变化前(取喂前值)
       S.hunger = clamp(S.hunger + gain); S.weight += 0.15; S.stats.feed++
       S.careScore++; S.lastAct.feed = Date.now(); ok = true
-      bubble(sick ? '没什么胃口…还是吃了' : '嗷呜嗷呜，好吃！'); break
+      if (!upset) bubble(sick ? '没什么胃口…还是吃了' : '嗷呜嗷呜，好吃！'); break
     }
     case 'snack': {
       if (cdLeft('snack') > 0) { bubble(`零食刚吃过（${cdLeft('snack')}s）`); break }
       if (S.hunger > 85) { bubble('真的一口都塞不下了~'); break } // 零食诱惑力 > 正餐: 拒绝线更高
+      const upset = noteFeed() // 闹肚子: 饱腹≥40 的滚动 1h 第 3 次投喂 → 肠胃抗议(洗澡无效, 只能吃药)
       S.hunger = clamp(S.hunger + 8); S.mood = clamp(S.mood + (sick ? 6 : 12)); S.weight += 0.25; S.stats.snack++
-      // 闹肚子: 滚动 1h 内第 3 次零食 → 肠胃抗议(洗澡无效, 只能吃药)
-      const snackAgo = Date.now() - 3600000 / SCALE
-      S.snackLog = (S.snackLog || []).filter(t => t > snackAgo)
-      S.snackLog.push(Date.now())
-      if (!isSick() && S.snackLog.length >= 3) {
-        S.sickType = 'upset'; S.sickSince = Date.now(); S.dirtySince = 0
-        log(`${S.name} 零食吃太急，闹肚子了！（吃点药吧）`); bubble('（咕噜噜…肚子好难受…）', 12)
-      } else bubble('零食！开心转圈！')
+      if (!upset) bubble('零食！开心转圈！')
       S.careScore++; S.lastAct.snack = Date.now(); ok = true; break
     }
     case 'water': {
@@ -398,7 +412,7 @@ function act(kind) {
       S.hunger = clamp(S.hunger - 6); S.thirst = clamp(S.thirst - 6) // 热水澡: 又饿又渴(轻代价, 双 0 才致死无死线压力)
       if (isSick()) {
         if (S.sickType === 'upset') bubble('洗完澡，肚子还是咕噜噜的…（吃点药吧）') // 闹肚子: 洗澡不管用, 药才是解
-        else { const cured = S.sickType; S.sickType = ''; S.sickSince = 0; log(cured === 'chill' ? `${S.name} 的热水澡驱走了寒气，痊愈了！` : `${S.name} 洗掉了一身病气，痊愈了！`); bubble('洗完澡，病好啦！') }
+        else { S.sickType = ''; S.sickSince = 0; log(`${S.name} 洗掉了一身病气，痊愈了！`); bubble('洗完澡，病好啦！') }
       }
       else bubble('泡泡好舒服~（肚子有点饿了）')
       S.dirtySince = 0; S.stats.bath++; S.careScore++; S.lastAct.bath = Date.now(); ok = true; break
@@ -413,7 +427,7 @@ function act(kind) {
       S.mood = clamp(S.mood + (isElder() ? 20 : 28)); S.energy = clamp(S.energy - (isElder() ? 22 : 15)) // 暮年玩一会就喘
       S.hunger = clamp(S.hunger - 4); S.thirst = clamp(S.thirst - 6)
       S.clean = clamp(S.clean - 5) // 玩得一身泥
-      S.weight = Math.max(0.2, S.weight - 0.2) // 燃脂: 玩耍是唯一的主动减重手段(超重的救赎)
+      S.weight = Math.max(0.2, S.weight - 0.1) // 燃脂: 玩耍是唯一的主动减重手段(超重的救赎); 0.1=零食一半, 贪嘴略胜懒惰
       bumpMeta() // 运动热度: 要在 lastAct.play 更新前判定连续窗口
       S.stats.play++; S.careScore += 2; S.lastAct.play = Date.now(); ok = true; bubble('耶！再玩一次！'); break
     }
@@ -426,11 +440,11 @@ function act(kind) {
       if (cdLeft('dose') > 0) { bubble(`药劲还没过（${cdLeft('dose')}s）`); break }
       if (!isSick()) { bubble('它很健康，不需要吃药'); break }
       const st = S.sickType
-      S.sickType = ''; S.sickSince = 0; S.dirtySince = 0; S.snackLog = [] // 药到病除; 胃也休整了(零食窗口清零)
+      S.sickType = ''; S.sickSince = 0; S.dirtySince = 0; S.feedLog = [] // 药到病除; 胃也休整了(投喂窗口清零)
       S.mood = clamp(S.mood - 20); S.energy = clamp(S.energy - 15) // 苦药的代价
       S.stats.dose++; S.lastAct.dose = Date.now(); ok = true
       log(`${S.name} 皱着眉把药吃了…病好啦${st === 'dirty' ? '（记得洗澡除根）' : ''}`)
-      bubble(st === 'upset' ? '苦…但肚子舒服多了…' : st === 'chill' ? '苦…身上热乎多了…' : '苦…但病好了…', 10); break
+      bubble(st === 'upset' ? '苦…但肚子舒服多了…' : '苦…但病好了…', 10); break
     }
     case 'touch': {
       if (cdLeft('touch') > 0) { bubble('（被摸得毛都乱了…）'); break }
@@ -647,9 +661,11 @@ function drawArt(rows, top, left, plan = null) {
     at(top + ri, col, out + ansi.clrEol)
   }
 }
-function bar(label, v, color, extra = '') {
-  const w = 14, filled = Math.round(v / 100 * w)
-  return `${label} ${bg(...color)}${' '.repeat(filled)}${R}${dim}${'·'.repeat(w - filled)}${R} ${String(Math.round(v)).padStart(3)}${extra}`
+function bar(label, v, color, extra = '', low = false) {
+  const w = 14, filled = Math.round(v / 100 * w), danger = low && v < 25
+  if (danger) color = [235, 80, 80] // 危险线: 血条变红(报警不响铃, 治愈不闹腾); 0 格时数字仍红
+  const num = String(Math.round(v)).padStart(3)
+  return `${label} ${bg(...color)}${' '.repeat(filled)}${R}${dim}${'·'.repeat(w - filled)}${R} ${danger ? fg(...color) : ''}${num}${danger ? R : ''}${extra}`
 }
 const hotButtons = [] // {row, c0, c1, kind}
 const KIND2KEY = { feed: 'f', snack: '1', water: 'w', bath: 'b', play: 'p', sleepToggle: 's', touch: 't', dose: 'd', rename: 'n', reset: 'r', quit: 'q', pickEgg1: '1', pickEgg2: '2', pickEgg3: '3', toggleStats: '\t', toggleHelp: '?', rps: 'g', rps1: '1', rps2: '2', rps3: '3', chat: 'c' }
@@ -808,9 +824,9 @@ function render() {
   } else {
     const wt = S.weight.toFixed(1) + 'kg'
     const wtState = S.weight > fatLine() ? fg(255, 150, 90) + '超重' + R : S.weight < thinLine() ? fg(120, 180, 255) + '偏瘦' + R : '标准'
-    at(rowB, 3, bar('饱腹', S.hunger, [230, 150, 60]) + '   ' + bar('口渴', S.thirst, [80, 170, 240]))
-    at(rowB + 1, 3, bar('洁净', S.clean, [130, 220, 200]) + '   ' + bar('心情', Math.min(S.mood, moodCap()), [250, 130, 200]))
-    at(rowB + 2, 3, bar('精力', S.energy, [180, 180, 120]) + `   体重 ${bold}${wt}${R} ${wtState}`)
+    at(rowB, 3, bar('饱腹', S.hunger, [230, 150, 60], '', true) + '   ' + bar('口渴', S.thirst, [80, 170, 240], '', true))
+    at(rowB + 1, 3, bar('洁净', S.clean, [130, 220, 200], '', true) + '   ' + bar('心情', Math.min(S.mood, moodCap()), [250, 130, 200], '', true))
+    at(rowB + 2, 3, bar('精力', S.energy, [180, 180, 120], '', true) + `   体重 ${bold}${wt}${R} ${wtState}`)
   }
 
   // 成就/纪念收纳为角标(点击或 Tab 进数据面板) + 帮助入口 + 最新一条日志独占行(不再与数值区接壤)
@@ -1000,7 +1016,7 @@ function renderHelp() {
     ['f', '喂食', '正餐，管饱'],
     ['1', '零食', '开心，但容易胖'],
     ['w', '喂水', '渴了就要喝'],
-    ['b', '洗澡', '去污治本（治生病）；洗完微饿微渴'],
+    ['b', '洗澡', '去污治脏病（除根）；洗完微饿微渴'],
     ['d', '吃药', '生病时救急（治标）'],
     ['s', '睡觉', '恢复精力，再按一次叫醒'],
     ['', '— 陪伴 —', ''],
@@ -1200,10 +1216,9 @@ setInterval(() => {
     applyDecay(SCALE / 3600)
     if (S.clean < SICK_DIRTY) { if (!S.dirtySince) S.dirtySince = Date.now() }
     else S.dirtySince = 0
-    // 生病判定: 脏病(低洁净持续) / 着凉(低洁净掷骰); 闹肚子由零食在 act() 触发
+    // 生病判定: 脏病(低洁净持续); 闹肚子由投喂(喂食/零食)在 act() 触发
     if (S.stage === 'alive' && !S.sickType) {
       if (S.dirtySince && Date.now() - S.dirtySince > SICK_MS) { S.sickType = 'dirty'; S.sickSince = Date.now(); log(`${S.name} 病倒了——太久没洗澡（洗澡除根，吃药救急）`); bubble('（阿嚏…浑身没力气…）', 12); bell(2) }
-      else if (S.clean < SICK_CHILL_BELOW && Math.random() < SICK_CHILL_P * SCALE / 3600) { S.sickType = 'chill'; S.sickSince = Date.now(); log(`${S.name} 着凉了——洗个热水澡，或吃点药`); bubble('（阿嚏！好像着凉了…）', 12) }
     }
     // 自主漫游: 每 8-20s(游戏时)换个目标点
     if (S.stage === 'alive' && S.awake && Date.now() > wanderNext) {
@@ -1211,8 +1226,10 @@ setInterval(() => {
       if (wanderTarget === wanderOff) wanderTarget = wanderOff + (Math.random() < 0.5 ? -2 : 2)
       wanderNext = Date.now() + (8 + Math.random() * 12) * (isElder() ? 1.6 : 1) * 1000 / SCALE
     }
-    if (S.stage === 'alive') { // 异常死线计时维护(离线冻结, 弥留期暂停)
+    if (S.stage === 'alive') { // 异常死线计时维护(离线冻结, 弥留期暂停); 单项归零起算瞬间 zeroSince 响铃+气泡一次
       S.heartSince = S.mood <= 0 ? (S.heartSince || Date.now()) : 0
+      S.thirstSince = zeroSince(S.thirst <= 0, S.thirstSince, '（嗓子干得冒烟…头好晕…给口水吧…）')
+      S.hungerSince = zeroSince(S.hunger <= 0, S.hungerSince, '（饿得眼冒金星…好想吃东西…）')
       S.sickSince = isSick() ? (S.sickSince || Date.now()) : 0
       const obeseNow = S.weight >= fatLine() * 1.6
       if (obeseNow && !S.obeseSince) { S.obeseSince = Date.now(); log(`${S.name} 胖得喘不上气了——多陪它玩耍燃脂，能退线自救`); bubble('（呼哧呼哧…跑不动了…陪我玩玩消消食吧…）', 12) }
