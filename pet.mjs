@@ -1085,11 +1085,13 @@ function renderStats() {
       const got = n > 0
       at(4 + i, dexCol, (got ? (d.cause === '寿终正寝' ? fg(255, 220, 120) + bold : fg(220, 120, 120)) : dim) + `${got ? d.icon + ' ' + d.name + (n > 1 ? ` ×${n}` : '') : '???'}` + R)
     })
-    at(11, dexCol, dim + `— 纪念墙 ${S.memorial.length} —` + R)
-    S.memorial.slice(-3).reverse().forEach((m, i) => {
+    // 家族树(右栏 11-15): 世代链谱系 — 近 3 代先祖 + 现役(更早的代数在标题提示; 全量死法见上方图鉴)
+    at(11, dexCol, dim + `— 家族树 · 第${S.generation}代${S.memorial.length > 3 ? `（前${S.memorial.length - 3}代略）` : ''} —` + R)
+    S.memorial.slice(-3).forEach((m, i) => {
       const md = DEATHS.find(x => x.cause === m.cause)
-      at(12 + i, dexCol, `${m.name}·存活${m.days}天·${md ? md.icon + md.name : m.cause}`)
+      at(12 + i, dexCol, dim + `第${m.generation}代 ${m.name}·${m.days}天·${md ? md.icon + md.name : m.cause}` + R)
     })
+    at(15, dexCol, fg(255, 230, 140) + `★ 第${S.generation}代 ${S.name || '它'}（现役）` + R)
     // 性格(右栏 16-18): 三维数值 + 分档标签
     const p = personality()
     at(16, dexCol, dim + `— 性格${p ? '' : '（孵化后展现）'} —` + R)
@@ -1107,11 +1109,14 @@ function renderStats() {
     at(21, 3, dim + `— 死法图鉴 ${gotD.filter(x => x.n > 0).length}/${DEATHS.length}: ${sum} —` + R)
     const p = personality()
     if (p) at(20, 3, dim + `— 性格 ${persoTag(p)} · ${PERSO_DIMS.map((d, i) => d.label + p[i]).join(' ')} —` + R)
-    at(22, 3, dim + `— 纪念墙 ${S.memorial.length} —` + R)
-    S.memorial.slice(-2).reverse().forEach((m, i) => {
-      const md = DEATHS.find(x => x.cause === m.cause)
-      if (23 + i <= 24) at(23 + i, 3, dim + `${m.name}·${m.days}天·${md ? md.icon + md.name : m.cause}` + R)
-    })
+    // 家族树(窄屏): 最近 1 代先祖 + 现役, 更早的代数在标题提示
+    at(22, 3, dim + `— 家族树 · 第${S.generation}代${S.memorial.length > 1 ? `（前${S.memorial.length - 1}代略）` : ''} —` + R)
+    const lastM = S.memorial[S.memorial.length - 1]
+    if (lastM) {
+      const md = DEATHS.find(x => x.cause === lastM.cause)
+      at(23, 3, dim + `第${lastM.generation}代 ${lastM.name}·${lastM.days}天·${md ? md.icon + md.name : lastM.cause}` + R)
+    }
+    at(24, 3, fg(255, 230, 140) + `★ 第${S.generation}代 ${S.name || '它'}（现役）` + R)
   }
 }
 // 帮助面板(?): 按键速查, 复用数据面板的标题/返回按钮机械, 单列自适应
@@ -1136,7 +1141,7 @@ function renderHelp() {
     ['g', '猜拳', '三局两胜，输赢它都开心'],
     ['c', '闲聊', '话题随状态和年龄变化'],
     ['', '— 系统 —', ''],
-    ['Tab', '数据面板', '生涯 / 成就 / 纪念墙 / 日志'],
+    ['Tab', '数据面板', '生涯 / 成就 / 家族树 / 日志'],
     ['n', '起名', '一辈子一次'],
     ['r', '重置', '纪念墙与成就保留'],
     ['q', '退出', '随时走，它会等你'],
