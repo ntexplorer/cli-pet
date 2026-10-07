@@ -114,12 +114,30 @@
     recheckStage dying 分支死亡取 min(弥留期限, 最早死线)，死因随线；
     README×2 特性段"弥留 4 小时"残留改 1 小时；血条 0 格变红不可见 → 数字同步染红；
     scan 新增 stagger-zero（负向验证：旧代码 FAIL 确认场景真抓回归）共 27 场景
-- v0.3.0：互动版（走测反馈"机制单薄，尤其互动"）：性格系统（黏人/活泼/贪吃三维由
-  累计 stats÷存活天数派生，影响乞讨节流/RPS_TEND/摸摸反应/闲聊选池，跨代 ±15 漂移）·
-  生物钟问候（13-14 午睡窗困倦气泡、22:30 睡前剧场池、每日首启晨间问候、归来按时长
-  分档）· 画布生活感（投喂掉碎屑/便便实体至多 2、每实体洁净衰减 +3/h、洗澡顺带清扫）·
-  离线小日记（归来 >30min 按时长分档"你不在时它做了什么"）· 家庭树页（renderStats
-  世代链+死法图鉴对照）——每机制一个 feat(pet)+scan 场景；超时砍序：家庭树→日记
+- v0.3.0 ✅（2026-10-07/08）：互动版（走测反馈"机制单薄，尤其互动"），5 机制各一 feat：
+  - 性格系统：PERSO_DIMS 三维（黏人=(touch+chat)/12d、活泼=(play+rps)/8d、贪吃=
+    (feed+snack)/8d，days≥0.2 归一 0-100）；hatch 以 persoBase 先验（父代 persoSnap
+    ±15 漂移，长子 50/50/50），lerp(先验,行为派生,min(days/3,1))；影响 petThrow
+    （活泼×剪刀/贪吃×石头/黏人≥60 三成模仿玩家上招 lastThrow）、maybeBeg 节流
+    9-13min、摸摸气泡分池；stats 页右栏 16-18 行展示+persoTag 分档（≥70 X精/≥40
+    偏X/else 温柔平衡）；die/doReset 快照 persoRaw，newEgg 保 persoSnap 跨代
+  - 生物钟：maybeCircadian（真实时钟不随 --fast）——晨问 6-11 点每日一次
+    lastMorning、午睡 13-14 点困倦气泡 30min 节流 lastYawnAt、THEATER 加 bedtime
+    池 22:30-23:00、catchUp 归来 dt>30min 三档气泡（<4h/<24h/更久）；tick 优先级
+    乞讨>问候>剧场
+  - 画布生活感：entities（defaultState 数组合并兜底，SAVE_VERSION 仍 3）——投喂
+    40% 掉屑、在线 tick 概率掉便便（hunger>50）、同类至多 2 溢出丢最旧；落点=
+    立绘半宽+3..7 避让（dragon 成年宽，固定 10-16 会贴边）；每实体洁净 +3/h 仅
+    在线计入；洗澡清空+log；渲染 renderFloorDirt 贴 art 底行（先画，漫游暂时遮挡）
+  - 离线小日记：catchUp 归来 dt>30min 分档随机 1 条 log（30m-4h/4-24h/>24h 三池）
+  - 家庭树：renderStats 右栏纪念墙段升级世代链（近 3 代先祖+金色★现役行；窄屏
+    最近 1 代+现役；死法图鉴原本就在 stats 页）
+  - 发版前对抗视觉审查修复（c0601a4）：◍ 提亮 205,140,85（原色阶深底不可见）、
+    落点改按立绘半宽避让、墓碑态按钮收敛三键（buttonBar 加 only/label 覆盖参
+    数，指引行 [f 下一代]）、帮助"治标"过期文案改"治一切，含闹肚子"、成就行宽
+    两栏钳 40 列防侵入右栏；素材全量重录（7 PNG+demo.gif，capture main 段不再按
+    b——洗澡会清扫夹具实体）；scan 33 场景（+stats-perso/return-greet/poop-canvas
+    ×2/diary-return/family-tree）
 - v0.4.0：i18n 英文（issue #1：MSG 目录 + t() + PET_LANG + L 键切换 + 首启按系统语言
   检测；deathCause 中文串→key 需 SAVE_VERSION 4 迁移——3 已被 v0.2.2 sickType 占用；
   README.md 保持英文默认）；
@@ -128,19 +146,20 @@
   独立 clone/发布件，升级=git pull；--save/--test 已论证不做，双 clone 即隔离）
 - v0.5.0：新物种 ×2
 
-## 接续指引（2026-10-07 v0.2.4 收工交接）
-- 现状：v0.2.3+v0.2.4 已实施完毕（渴/饿单零死线、删着凉、闹肚子 v2
-  饱腹≥40 计数、燃脂 -0.1、血条 <25 变红含 0 值数字染红、弥留 1h、参差双零取 min；
-  pet.mjs/README×2/scan 27 场景/本文件同步）。SAVE_VERSION
-  保持 3——feedLog/thirstSince/hungerSince 走 defaultState 合并兜底，旧档无感
-- v0.3.0 互动版已批准（方案见路线图），5 机制各自独立提交（feat(pet)），scan 每机制
-  加场景；性格系统的派生数据先只做展示（stats 页），行为影响逐步接入
-- 走测观测项：零食是玩耍外主要心情渠道（+12、CD 5min），滚动 1h 第 3 次必病+吃药
-  -20 心情，高频玩家可能陷入"病-药"循环——v0.3.0 期间观测发病率，超标再调
+## 接续指引（2026-10-08 v0.3.0 收工交接）
+- 现状：v0.3.0 五机制+视觉修复+素材重录完毕（95e9e60→563b34d，已推 main 并发
+  v0.3.0）。SAVE_VERSION 保持 3——entities/lastMorning/lastYawnAt/persoBase/
+  persoSnap/lastThrow 全走 defaultState 合并兜底，旧档无感
+- 性格行为接入现状：猜拳偏好/乞食节流/摸摸气泡已接入；闲聊选池（CHAT_COND）未
+  接入——v0.3.x 可补（按最高维选池，方案在路线图原文）
+- 走测观测项（沿用）：零食"病-药"循环——v0.3.0 期间观测发病率，超标再调
   （候选：病中零食心情收益减半/闹肚子只惩罚连续第 3 次）
-- i18n 顺延为 v0.4.0：deathCause 迁移用 SAVE_VERSION 4（3 已占用）；v0.2.3 新增文案
-  （渴/饿归零气泡、闹肚子新文案）连同 v0.2.2 的（燃脂/运动热度/角标标签）一起纳入清单
-- 遗留 P2 打磨（视觉审查提出，未做）：选蛋界面下半屏留白、帮助面板底注空档、help
-  键位列"1"字形 webfont 观感、墓碑态仍渲染全部互动按钮（应置灰/隐藏，仅 [f] 有效）
-- 其他终端接续：`git pull` → 读本文件 → `/start-day` 盘点 → 下一步 v0.3.0 互动版
+- 视觉审查遗留 P2（本轮未做）：选蛋界面下半屏留白、帮助面板底注空档、help 键位
+  列"1"字形 webfont 观感、stats 成就"二十日话"行尾距 42 列红线余量小（文案加长
+  会侵入右栏，预算已钳 40 列只是视觉近）；墓碑按钮/治标文案/◍ 可见性已修
+- 坑位追加：pet.mjs 是自执行脚本，node -e 里 import('pet.mjs') 会真的启动游戏
+  （120s 超时才被杀、还会写 state.json）——只读源码用 fs.readFileSync，别 import；
+  ui-reviewer 子代理 bash 白名单仅放行 msedge/playwright（无文件写入），需要裁切
+  放大复核的项在主会话做
+- 其他终端接续：`git pull` → 读本文件 → `/start-day` 盘点 → 下一步 v0.4.0 i18n
   （注意：scan.mjs 的 marker 是中文，i18n 后要补英文对照）
