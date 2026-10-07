@@ -50,6 +50,7 @@ Terminals are where we live all day — so a pet should live there too, without 
 - **Never punishes you for having a life.** No background process, no notifications. Time catches up on next launch, and your pet **cannot die while you're away** — offline stats have a floor and the dying clock freezes.
 - **One file, zero everything.** `pet.mjs` is the whole program. No install script, no package.json, no network, no telemetry. Read it in one sitting (it's ~1200 lines).
 - **A real arc.** Egg → baby → adult → elder (day 21+) → one of six deaths → mourning → next generation. Achievements and the memorial wall carry across generations.
+- **A personality of its own.** How you spend the days shapes it — cuddly, lively or gluttonous (visible on the stats page). It biases its rock-paper-scissors throws, how often it begs for attention, and nuzzle reactions — and drifts ±15 into the next generation.
 
 ## Install
 
@@ -117,7 +118,7 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 **Player QoL**
 - **Offline-friendly** — no process, no network; catch-up math on launch, never dies while away
 - **Adaptive layout** — auto-fits narrow panes; `PET_WIDTH` env override
-- **Stats dashboard** — `Tab` for career stats, achievement progress (e.g. 12/50), memorial wall, full log
+- **Stats dashboard** — `Tab` for career stats, personality, achievement progress (e.g. 12/50), memorial wall, full log
 - **10 achievements** — career-wide, survive across generations
 - **Anti-spam actions** — pets refuse what they don't need; each action shows a live cooldown on its button
 - **`--fast` test mode** — `pet --fast` (or `--fast=120`) speeds the clock ×60: hatch in 3 s, a full life in ~20 min. Try every feature; keep it away from your real pet's save
@@ -137,7 +138,7 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 | `t` | pet it | mood +10 (60 s cooldown) — or click the pet; gets annoyed (mood −3) past 2 pets per rolling hour (3 when elderly, +12 each) |
 | `g` | rock-paper-scissors | best-of-3, throw with `1`/`2`/`3`, `q` to bow out — win: mood +15, energy −8, care +1 · lose: mood +5 · 3 min CD |
 | `c` | small talk | mood +2 (60 s cooldown); topics react to stats, age and achievements |
-| `Tab` | stats dashboard | career stats, achievement progress, memorial wall, full log |
+| `Tab` | stats dashboard | career stats, personality, achievements, memorial wall, full log |
 | `?` | key reference | all keys at a glance (`?` or `Tab` to close); hinted once after hatching |
 | `n` | name (once) | up to 8 chars, CJK OK — the name sticks afterwards |
 | `r` | reset | keeps memorial & achievements, `y` to confirm |

@@ -60,6 +60,8 @@ const SCEN = [
   { name: 'dying-78', w: 78, over: { stage: 'dying', dyingSince: now, hunger: 0, thirst: 0, energy: 5, mood: 5 }, keys: [], mark: ['危急'] },
   { name: 'grave-78', w: 78, over: { stage: 'dead', diedAt: now - 121_000, deathCause: '寿终正寝', bornAt: now - 27 * D, hatchedAt: now - 26 * D, memorial: [{ name: '泡泡', species: 'slime', days: 26.9, cause: '寿终正寝', generation: 1 }] }, keys: [], mark: ['长眠', '迎接下一代'] },
   { name: 'stats-78', w: 78, over: { species: 'hamster', careScore: 40 }, keys: [[1200, '\t']], mark: ['数据面板', '成就'] },
+  // 性格派生(v0.3.0): 3 天重度投喂档 → 贪吃 100 '干饭魂' 标签稳定显示
+  { name: 'stats-perso-78', w: 78, over: { species: 'hamster', careScore: 40, bornAt: now - 3 * D, hatchedAt: now - 3 * D + 60_000, stats: { feed: 60, snack: 20, play: 2, touch: 3, chat: 2, water: 20, bath: 6, dose: 0, rps: 1 } }, keys: [[1200, '\t']], mark: ['干饭魂', '贪吃 100'] },
   { name: 'help-78', w: 78, over: {}, keys: [[1200, '?']], mark: ['按键说明'] },
   // 改名/重置提示不走整帧重绘(render 循环挂起), 用原文流检索
   { name: 'rename-78', w: 78, over: { named: false }, keys: [[1200, 'n'], [2600, '\x1b']], mark: [], raw: ['新名字'] },

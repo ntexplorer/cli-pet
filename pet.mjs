@@ -178,6 +178,9 @@ function defaultState() {
     touchLog: [],              // 摸摸时间戳(滚动1h窗口, 防白嫖心情)
     feedLog: [],               // 投喂时间戳(饱腹≥40 才记; 滚动1h窗口第3次闹肚子); 旧档 snackLog 弃用不清读
     metaLv: 0, metaUntil: 0,   // 运动热度: 连续玩耍叠层提代谢, 停玩一段时间恢复原值
+    persoBase: null,           // 性格出生先验 [黏人,活泼,贪吃] 0-100; hatch 时由父代快照 ±15 漂移而来
+    persoSnap: null,           // 死亡/重置时的行为性格快照 → 跨代漂移源
+    lastThrow: -1,             // 玩家最近一次猜拳出招(黏人性格会模仿)
     rps: null,                 // 猜拳进行中 {me, pet, round}
   }
 }
@@ -342,6 +345,7 @@ function recheckStage(dt = 0) {
 }
 function die(cause) {
   S.stage = 'dead'; S.diedAt = Date.now(); S.deathCause = cause; S.rps = null
+  S.persoSnap = persoRaw() // 性格快照: 传给下一代的先验
   const d = DEATHS.find(x => x.cause === cause)
   S.memorial.push({ name: S.name, species: S.species, days: +livedDays(S).toFixed(1), cause, generation: S.generation })
   log(`${S.name} 永远地离开了…${d ? d.icon + d.name : `（${cause}）`}${cause === '寿终正寝' ? '——圆满的一生' : ''}`); bell(5)
@@ -349,12 +353,41 @@ function die(cause) {
 function hatch() {
   S.stage = 'alive'; S.hatchedAt = Date.now()
   S.weight = SPECIES[S.species].baseWeight * 0.8
+  // 性格先验: 长子 [50,50,50]; 后代以父代终值 ±15 漂移(血脉传承, 习惯再自己长)
+  S.persoBase = S.persoSnap ? S.persoSnap.map(v => clamp(Math.round(v + (Math.random() * 2 - 1) * 15))) : [50, 50, 50]
   log(`蛋壳裂开——${S.name} 孵出来了！`); bubble('初次见面！', 8); bell(2)
   save()
 }
 function isSleepTime() { const h = new Date().getHours(); return h >= 23 || h < 7 }
 function isElder() { return livedDays(S) >= ELDER_DAYS }
 function grownStage() { return isElder() ? 'elder' : S.careScore >= GROW_CARE ? 'adult' : 'baby' }
+
+// ---------- 性格(派生不存档): 累计行为 ÷ 存活天数 → 黏人/活泼/贪吃 0-100 ----------
+const PERSO_DIMS = [
+  { label: '黏人', tags: ['小跟屁虫', '黏人精'] },   // 摸摸+闲聊: 12 次/天 = 100
+  { label: '活泼', tags: ['开心果', '皮猴子'] },     // 玩耍+猜拳: 8 次/天 = 100
+  { label: '贪吃', tags: ['小吃货', '干饭魂'] },     // 喂食+零食: 8 次/天 = 100
+]
+function persoRaw() { // 纯行为派生值(不混合先验)
+  const days = Math.max(0.2, livedDays(S)), f = n => n / days
+  return [
+    Math.round(clamp(f((S.stats.touch || 0) + (S.stats.chat || 0)) / 12 * 100)),
+    Math.round(clamp(f((S.stats.play || 0) + (S.stats.rps || 0)) / 8 * 100)),
+    Math.round(clamp(f((S.stats.feed || 0) + (S.stats.snack || 0)) / 8 * 100)),
+  ]
+}
+function personality() { // 展示值 = lerp(出生先验, 行为值, min(存活/3天,1)); 3 天完成从血统到习惯的过渡
+  if (!S.hatchedAt) return null
+  const raw = persoRaw()
+  if (!S.persoBase) return raw
+  const w = Math.min(livedDays(S) / 3, 1)
+  return raw.map((v, i) => Math.round(S.persoBase[i] + (v - S.persoBase[i]) * w))
+}
+function persoTag(p) { // 分档标签: 最高维 ≥40 入档(40-69 轻/70+ 重), 全低则平衡
+  if (!p) return null
+  const top = p.indexOf(Math.max(...p))
+  return p[top] >= 70 ? PERSO_DIMS[top].tags[1] : p[top] >= 40 ? PERSO_DIMS[top].tags[0] : '温柔平衡'
+}
 
 // ---------- 动作 ----------
 function clamp(v, a = 0, b = 100) { return Math.max(a, Math.min(b, v)) }
@@ -459,7 +492,12 @@ function act(kind) {
       if (S.touchLog.length >= quota) { S.mood = clamp(S.mood - 3); bubble('被摸烦了，甩甩尾巴不理你'); break }
       S.touchLog.push(Date.now())
       S.mood = clamp(S.mood + gainT); S.stats.touch++
-      S.careScore++; ok = true; bubble('呼噜呼噜…最喜欢你了'); break
+      S.careScore++; ok = true
+      { // 摸摸反应按性格分池(治愈不闹腾): 黏人蹭手心/活泼扑过来/贪吃看零食, 平和默认
+        const p = personality(), top = p && Math.max(...p) >= 60 ? p.indexOf(Math.max(...p)) : -1
+        bubble(['往你手心里蹭了蹭…', '蹦到你身上蹭了一脸毛！', '舒服得眯起眼，摸完想吃点啥…'][top] || '呼噜呼噜…最喜欢你了')
+      }
+      break
     }
   }
   S.mood = Math.min(S.mood, moodCap())
@@ -472,6 +510,11 @@ const RPS_TEND = { slime: [0.25, 0.25, 0.5], hamster: [0.3, 0.45, 0.25], dragon:
 function petThrow() {
   const w = (RPS_TEND[S.species] || [1 / 3, 1 / 3, 1 / 3]).slice()
   if (isElder()) { const mi = w.indexOf(Math.max(...w)); w[mi] *= 1.6 } // 暮年出招更固执
+  const p = personality()
+  if (p) { // 性格偏移(轻, 依然可被摸透): 活泼爱出剪刀, 贪吃爱出石头
+    w[1] *= 1 + p[1] / 300; w[0] *= 1 + p[2] / 300
+    if (p[0] >= 60 && S.lastThrow >= 0 && Math.random() < 0.3) return S.lastThrow // 黏人: 三成概率学你上一招
+  }
   const sum = w.reduce((a, b) => a + b, 0)
   let r = Math.random() * sum
   for (let i = 0; i < 3; i++) { r -= w[i]; if (r < 0) return i }
@@ -496,6 +539,7 @@ function rpsThrow(i) {
   if (res === 2) S.rps.me++; else if (res === 1) S.rps.pet++
   // 结算移交 finishRps: 动画播完统一入账(q 跳过/中途退出也不丢)
   S.rps.reveal = { me: i, pet: p, res, final: S.rps.me >= 2 || S.rps.pet >= 2, at: Date.now(), prevMe, prevPet }
+  S.lastThrow = i // 黏人性格的模仿素材
   save()
 }
 function finishRps() { // 终局结算: 揭示动画终屏到期(或 q 跳过)时调用
@@ -591,9 +635,10 @@ const BEGS = [
   ['mood', 40, ['（把玩具叼到你面前…）', '（蔫蔫地趴着，提不起劲）']],
   ['clean', 40, ['（身上痒痒，蹭了蹭墙角…）', '（毛色暗淡，眼巴巴盼着洗澡）']],
 ]
-function maybeBeg() { // 生病>口渴>饱腹>心情>洁净, 10 分钟节流
+function maybeBeg() { // 生病>口渴>饱腹>心情>洁净, 10 分钟节流(黏人性格更爱撒娇: 9~13 分钟)
   if (S.stage !== 'alive') return false
-  if (Date.now() - (S.lastBegAt || 0) < 10 * 60000) return false
+  const p = personality(), cd = 10 * 60000 * (p ? 1.3 - p[0] / 250 : 1)
+  if (Date.now() - (S.lastBegAt || 0) < cd) return false
   const want = BEGS.find(([k, low]) => (k === '__sick' ? isSick() : S[k] < low))
   if (!want) return false
   S.lastBegAt = Date.now()
@@ -991,6 +1036,13 @@ function renderStats() {
       const md = DEATHS.find(x => x.cause === m.cause)
       at(12 + i, dexCol, `${m.name}·存活${m.days}天·${md ? md.icon + md.name : m.cause}`)
     })
+    // 性格(右栏 16-18): 三维数值 + 分档标签
+    const p = personality()
+    at(16, dexCol, dim + `— 性格${p ? '' : '（孵化后展现）'} —` + R)
+    if (p) {
+      at(17, dexCol, PERSO_DIMS.map((d, i) => `${d.label} ${p[i]}`).join(' · '))
+      at(18, dexCol, dim + `它是只${persoTag(p)}` + R)
+    }
     // 日志(通栏底部)
     at(20, 3, dim + '— 日志 —' + R)
     S.log.slice().reverse().forEach((e, i) => { if (21 + i <= 22) at(21 + i, 3, dim + sliceW(e.text, TERM_W - 4) + R) })
@@ -999,6 +1051,8 @@ function renderStats() {
     const gotD = DEATHS.map(d => ({ d, n: S.memorial.filter(m => m.cause === d.cause).length }))
     const sum = gotD.map(({ d, n }) => n > 0 ? `${d.icon}${n > 1 ? n : ''}` : '❔').join(' ')
     at(21, 3, dim + `— 死法图鉴 ${gotD.filter(x => x.n > 0).length}/${DEATHS.length}: ${sum} —` + R)
+    const p = personality()
+    if (p) at(20, 3, dim + `— 性格 ${persoTag(p)} · ${PERSO_DIMS.map((d, i) => d.label + p[i]).join(' ')} —` + R)
     at(22, 3, dim + `— 纪念墙 ${S.memorial.length} —` + R)
     S.memorial.slice(-2).reverse().forEach((m, i) => {
       const md = DEATHS.find(x => x.cause === m.cause)
@@ -1141,8 +1195,9 @@ function pickEgg(n) {
   save()
 }
 
-function doReset() { // 保留驯主生涯(纪念墙/成就/计数/世代), 重养当前宠物
-  const keep = { memorial: S.memorial, achievements: S.achievements, stats: S.stats, generation: S.generation }
+function doReset() { // 保留驯主生涯(纪念墙/成就/计数/世代/性格快照), 重养当前宠物
+  S.persoSnap = persoRaw()
+  const keep = { memorial: S.memorial, achievements: S.achievements, stats: S.stats, generation: S.generation, persoSnap: S.persoSnap }
   S = Object.assign(defaultState(), keep)
   PAGE = 'main'
   log('重置：重新开始（纪念墙与成就保留）')
