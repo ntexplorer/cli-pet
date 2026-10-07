@@ -175,6 +175,7 @@ function defaultState() {
     memorial: [],              // [{name,species,days,cause,generation}]
     log: [],                   // 最近事件 [{t,text}]
     lastAct: {}, named: false, lastEventAt: 0, bubble: null, lastEggWiggle: 0, askReset: false, lastBegAt: 0, helpHinted: false, // bubble {text, until}; helpHinted 孵化后 ? 提示只播一次
+    lastMorning: '', lastYawnAt: 0, // 生物钟: 每日晨问日期串 / 午睡窗困倦节流(真实时钟)
     touchLog: [],              // 摸摸时间戳(滚动1h窗口, 防白嫖心情)
     feedLog: [],               // 投喂时间戳(饱腹≥40 才记; 滚动1h窗口第3次闹肚子); 旧档 snackLog 弃用不清读
     metaLv: 0, metaUntil: 0,   // 运动热度: 连续玩耍叠层提代谢, 停玩一段时间恢复原值
@@ -286,7 +287,10 @@ function catchUp() {
   }
   // 弥留判定
   recheckStage(0)
-  if (dt > 30 * 60000) log(`离线 ${fmtDur(dt)}，回到了 ${S.name || '宠物'} 身边`)
+  if (dt > 30 * 60000) { // 归来问候(v0.3.0): 按离开时长分档, 越久越想你
+    log(`离线 ${fmtDur(dt)}，回到了 ${S.name || '宠物'} 身边`)
+    if (S.stage === 'alive' && S.awake !== false) bubble(dt < 4 * H ? '你回来啦！我乖乖等着呢' : dt < 24 * H ? '好久不见！想死你了～' : '你终于回来了…我等了你好久好久', 12)
+  }
   save()
 }
 // 死法图鉴(Dead Cells 式收集): cause 与 memorial 记录匹配
@@ -614,6 +618,7 @@ function checkAchievements() {
 // ---------- 随机小剧场 ----------
 const THEATER = {
   common: ['（盯着你看了一会儿）', '（突然原地转了个圈）', '（哼起了不成调的小曲）', '（望着远处发呆）', '（打了个大大的哈欠）'],
+  bedtime: ['（在数羊…一只、两只、呼…）', '（把小窝的垫子拱了拱，准备睡了）', '（今晚的星星真好看呀）', '（困困地朝你挥了挥爪子：晚安～）'],
   slime:  ['（Q弹Q弹地弹了两下）', '（把自己捏成了一个小方块又弹回来）', '（身上闪过一道彩虹光）'],
   hamster:['（把颊囊塞得满满的）', '（在木屑里刨了个洞）', '（偷偷藏起一颗粮）'],
   dragon: ['（鼻孔冒出两撮小火星）', '（对着影子练习喷火）', '（翅膀扑腾着原地起飞失败）'],
@@ -623,8 +628,29 @@ function maybeTheater() {
   if (S.bubble && Date.now() < S.bubble.until) return // 气泡在播时不打断(乞讨优先)
   if (Date.now() - S.lastEventAt < (2 + Math.random() * 3) * 60000) return
   S.lastEventAt = Date.now()
-  const pool = [...(THEATER[S.species] || []), ...THEATER.common]
+  const hm = new Date().getHours() * 60 + new Date().getMinutes()
+  const pool = hm >= 1350 && hm < 1380 ? THEATER.bedtime : [...(THEATER[S.species] || []), ...THEATER.common] // 22:30-23:00 睡前剧场池
   bubble(pool[Math.floor(Math.random() * pool.length)], 10)
+}
+
+// ---------- 生物钟问候(v0.3.0): 晨问/午睡困倦 — 真实时钟, 不随 --fast 缩放 ----------
+const GREET_MORNING = ['早上好呀！今天也一起加油～', '（伸了个大大的懒腰）早安！', '早安！梦到你给我零食了～', '（阳光正好，眯着眼打招呼）']
+const GREET_NAP = ['（眼皮打架…午后的阳光好催眠…）', '（趴着打了个小盹，尾巴一晃一晃）', '（哈欠…中午好困呀…）']
+function maybeCircadian() { // 挂 1s tick: 乞讨之后、小剧场之前
+  if (S.stage !== 'alive' || !S.awake || (S.bubble && Date.now() < S.bubble.until)) return false
+  const t = new Date(), hm = t.getHours() * 60 + t.getMinutes(), day = t.toDateString()
+  if (hm >= 360 && hm < 660 && S.lastMorning !== day) { // 6:00-11:00 每日首启晨间问候(每天一次)
+    S.lastMorning = day
+    const msg = GREET_MORNING[(Math.random() * GREET_MORNING.length) | 0]
+    bubble(msg, 10); log(msg); save()
+    return true
+  }
+  if (hm >= 780 && hm < 840 && Date.now() - (S.lastYawnAt || 0) > 30 * 60000) { // 13-14 午睡窗困倦(30 分钟节流)
+    S.lastYawnAt = Date.now()
+    bubble(GREET_NAP[(Math.random() * GREET_NAP.length) | 0], 10)
+    return true
+  }
+  return false
 }
 
 // ---------- 定向乞讨(低数值时优先于小剧场) ----------
@@ -1294,7 +1320,7 @@ setInterval(() => {
       if (!obeseNow) S.obeseSince = 0
       S.exhaustSince = (S.awake && S.energy <= 0) ? (S.exhaustSince || Date.now()) : 0
     }
-      recheckStage(0); if (!maybeBeg()) maybeTheater(); checkAchievements()
+      recheckStage(0); if (!maybeBeg() && !maybeCircadian()) maybeTheater(); checkAchievements()
     // 孵化后一次性引导: 等「初次见面」气泡(8s)落幕后提示 ? 帮助(看过帮助则免)
     if (S.stage === 'alive' && !S.helpHinted && Date.now() - S.hatchedAt > 9000) {
       S.helpHinted = true; bubble('按 ? 看按键说明', 12); save()

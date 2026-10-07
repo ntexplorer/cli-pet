@@ -27,7 +27,11 @@ const dispW = ch => { const c = ch.codePointAt(0); return (c < 0x80 || c === 0xb
 // ---------- 场景 ----------
 const now = Date.now()
 // 通用活体存档: lastEventAt/lastBegAt/lastEggWiggle 压到当前时刻 → 压制随机小剧场/乞讨/蛋晃, 保证帧确定
-const mk = over => ({
+// 字段值可为函数 → 场景启动时求值(时间敏感场景如弥留死线须锚定自身启动时刻, 免受串行累计漂移误杀)
+const mk = over => {
+  const o = {}
+  for (const k in over) o[k] = typeof over[k] === 'function' ? over[k]() : over[k]
+  return ({
   version: 2, stage: 'alive', species: 'slime', name: '泡泡',
   bornAt: now - H, lastSeen: now, hatchedAt: now - H + 60_000, generation: 1,
   hunger: 75, thirst: 75, clean: 75, mood: 75, energy: 75, weight: 1.2, awake: true,
@@ -36,8 +40,9 @@ const mk = over => ({
   stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0, rps: 0, chat: 0 },
   achievements: [], memorial: [], log: [], lastAct: {}, named: true,
   lastEventAt: now, bubble: null, lastEggWiggle: now, askReset: false, lastBegAt: now,
-  helpHinted: true, touchLog: [], rps: null, ...over,
-})
+  helpHinted: true, touchLog: [], rps: null, ...o,
+  })
+}
 const dragon = { species: 'dragon', name: '喷火娃', careScore: 55, weight: 2.4 }
 const SCEN = [
   { name: 'eggselect-78', w: 78, over: { stage: 'eggSelect', species: null, name: null }, keys: [], mark: ['领养', '史莱姆'] },
@@ -52,12 +57,14 @@ const SCEN = [
   { name: 'sick-upset-78', w: 78, over: { hunger: 50 }, keys: [[1200, '1'], [6600, '1'], [12000, '1'], [15000, 'd']], mark: ['把药吃了'], raw: ['闹肚子', '肚子好难受', '苦…但肚子舒服多了'] },
   // 单项归零死线: 口渴 0 → 响铃+气泡+💧 角标倒计时(v0.2.3 渴死机制)
   { name: 'zero-thirst-78', w: 78, over: { thirst: 0 }, keys: [], mark: ['💧'], raw: ['嗓子干得'] },
+  // 归来问候(v0.3.0): 离线 3h 归来 → 分档气泡(晨问/午睡走真实时钟不可测, 以 code review+冒烟覆盖)
+  { name: 'return-greet-78', w: 78, over: { lastSeen: now - 3 * H }, keys: [], mark: [], raw: ['你回来啦'] },
   // 参差双零倒挂修复: 弥留中单零死线照走 — thirst 死线 2s 到, 先于 30s 弥留, 12s 末帧应已长眠(未修则还弥留)
   { name: 'stagger-zero-78', w: 78, over: { stage: 'dying', dyingSince: now - 30_000, thirstSince: now - 118_000, hunger: 0, thirst: 0 }, ms: 12_000, keys: [], mark: ['长眠'] },
   // 肥胖救援链路: 过线警告(🍰+指引气泡) → 玩耍燃脂退线(🔥 热度, 🍰 消失)
   { name: 'obese-rescue-78', w: 78, over: { weight: 2.95, energy: 90, mood: 50 }, keys: [[2500, 'p']], mark: ['🔥'], raw: ['消消食', '🍰'] },
   { name: 'fat-78', w: 78, over: { weight: 2.2 }, keys: [], mark: ['超重'] },
-  { name: 'dying-78', w: 78, over: { stage: 'dying', dyingSince: now, hunger: 0, thirst: 0, energy: 5, mood: 5 }, keys: [], mark: ['危急'] },
+  { name: 'dying-78', w: 78, over: { stage: 'dying', dyingSince: () => Date.now(), hunger: 0, thirst: 0, energy: 5, mood: 5 }, keys: [], mark: ['危急'] },
   { name: 'grave-78', w: 78, over: { stage: 'dead', diedAt: now - 121_000, deathCause: '寿终正寝', bornAt: now - 27 * D, hatchedAt: now - 26 * D, memorial: [{ name: '泡泡', species: 'slime', days: 26.9, cause: '寿终正寝', generation: 1 }] }, keys: [], mark: ['长眠', '迎接下一代'] },
   { name: 'stats-78', w: 78, over: { species: 'hamster', careScore: 40 }, keys: [[1200, '\t']], mark: ['数据面板', '成就'] },
   // 性格派生(v0.3.0): 3 天重度投喂档 → 贪吃 100 '干饭魂' 标签稳定显示
