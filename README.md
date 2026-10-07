@@ -98,7 +98,7 @@ If the pane is narrow the layout adapts automatically; force a width with `PET_W
 **Life & body**
 - **Three species** — slime / hamster / dragon, each with distinct egg sprites, baby & adult pixel art (adult form unlocked through care)
 - **Five stats** — hunger, thirst, cleanliness, mood, energy; real-time decay
-- **Full life arc** — egg (3 min hatch, with cracks & wiggles) → baby → adult → **elder from day 21** (fading but cozy) → dying (4 h rescuable window) → grave → mourning → next generation
+ - **Full life arc** — egg (3 min hatch, with cracks & wiggles) → baby → adult → **elder from day 21** (fading but cozy) → dying (1 h rescuable window) → grave → mourning → next generation
 - **Weight system** — overfeed and it visibly gets wider (and mood-capped); meals vs snacks, and snacks are *way* more tempting than meals
 - **Six ways to go** — 🥀 starvation · 💔 broken heart · 🤒 untreated sickness · 🍰 overfeeding · ⚡ exhaustion · ⭐ old age (30 days, honorary). Unseen causes show as `???` in the death codex (Dead-Cells style)
 

@@ -326,12 +326,15 @@ function recheckStage(dt = 0) {
       if (livedDays(S) >= LIFESPAN_DAYS) return die('寿终正寝')
     }
   } else if (S.stage === 'dying') {
-    const deadline = S.dyingSince + (S.energy <= 5 && S.mood <= 5 ? GRACE_MS / 4 : GRACE_MS) // 全衰竭 → 弥留压缩 1/4
+    let deadline = S.dyingSince + (S.energy <= 5 && S.mood <= 5 ? GRACE_MS / 4 : GRACE_MS), cause = '饥饿与干渴' // 全衰竭 → 弥留压缩 1/4
+    for (const k of ['heartSince', 'thirstSince', 'hungerSince', 'sickSince', 'obeseSince', 'exhaustSince']) {
+      if (S[k] && S[k] + DEATH_MS < deadline) { deadline = S[k] + DEATH_MS; cause = { heartSince: '心碎而亡', thirstSince: '饥饿与干渴', hungerSince: '饥饿与干渴', sickSince: '病入膏肓', obeseSince: '撑死的', exhaustSince: '意外猝死' }[k] }
+    } // 弥留期死线照走: 参差双零取 min, 不比单零死得慢
     if (S.hunger > 10 && S.thirst > 10) {
       S.stage = 'alive'; S.dyingSince = 0
-      log(`${S.name} 被从鬼门关拉了回来！`); bubble('呼…差点睡着就醒不来了…', 10)
+      log(`${S.name} 被从鬼门关拉了回来！`); bubble('呼…差点睡着就醒不来的…', 10)
     } else if (now >= deadline) {
-      die('饥饿与干渴')
+      die(cause)
     }
   } else if (S.stage === 'dead' && Date.now() - S.diedAt >= MOURN_MS) {
     // 守灵结束 → 待重新孵蛋(由用户按键触发, 这里只解锁)
