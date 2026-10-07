@@ -44,8 +44,9 @@ const SEGMENTS = [
   { name: 'egg-select', ms: 6500, keys: [], state: { version: 1, stage: 'eggSelect' } },
   {
     name: 'main', ms: 12500,
-    keys: [[2200, 't'], [5200, 'f'], [8600, 'b'], [10600, 'p']],
-    state: alive({ species: 'slime', name: '小煤球', clean: 38, lastEventAt: now, lastBegAt: now }),
+    keys: [[2200, 't'], [5200, 'f'], [10600, 'p']], // 不按 b: 洗澡会清扫夹具实体, 末帧要保留 便便+碎屑 展示
+    // entities(v0.3.0): 画布上一坨便便+几粒碎屑, 展示生活感(80 列中轴 40, ±11 落在立绘两侧空地)
+    state: alive({ species: 'slime', name: '小煤球', clean: 38, lastEventAt: now, lastBegAt: now, entities: [{ k: 'poop', col: -12, at: now }, { k: 'crumb', col: 11, at: now }] }),
   },
   // v0.2.3 低状态告警: 口渴归零 → 响铃+气泡+💧 死线角标倒计时, 五维血条 <25 变红
   {
