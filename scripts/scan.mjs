@@ -59,6 +59,9 @@ const SCEN = [
   { name: 'zero-thirst-78', w: 78, over: { thirst: 0 }, keys: [], mark: ['💧'], raw: ['嗓子干得'] },
   // 归来问候(v0.3.0): 离线 3h 归来 → 分档气泡(晨问/午睡走真实时钟不可测, 以 code review+冒烟覆盖)
   { name: 'return-greet-78', w: 78, over: { lastSeen: now - 3 * H }, keys: [], mark: [], raw: ['你回来啦'] },
+  // 画布生活感(v0.3.0): 预置便便+碎屑 → 立绘底行两侧渲染可见字符('·' 点号文案区太常见, 以 '◍' 为准)
+  { name: 'poop-canvas-78', w: 78, over: { entities: [{ k: 'poop', col: -12, at: now }, { k: 'crumb', col: 12, at: now }] }, keys: [], mark: ['◍'] },
+  { name: 'poop-canvas-58', w: 58, over: { entities: [{ k: 'poop', col: -12, at: now }] }, keys: [], mark: ['◍'] },
   // 参差双零倒挂修复: 弥留中单零死线照走 — thirst 死线 2s 到, 先于 30s 弥留, 12s 末帧应已长眠(未修则还弥留)
   { name: 'stagger-zero-78', w: 78, over: { stage: 'dying', dyingSince: now - 30_000, thirstSince: now - 118_000, hunger: 0, thirst: 0 }, ms: 12_000, keys: [], mark: ['长眠'] },
   // 肥胖救援链路: 过线警告(🍰+指引气泡) → 玩耍燃脂退线(🔥 热度, 🍰 消失)

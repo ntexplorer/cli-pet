@@ -179,6 +179,7 @@ function defaultState() {
     touchLog: [],              // 摸摸时间戳(滚动1h窗口, 防白嫖心情)
     feedLog: [],               // 投喂时间戳(饱腹≥40 才记; 滚动1h窗口第3次闹肚子); 旧档 snackLog 弃用不清读
     metaLv: 0, metaUntil: 0,   // 运动热度: 连续玩耍叠层提代谢, 停玩一段时间恢复原值
+    entities: [],              // 画布生活感: [{k:'crumb'|'poop', col, at}] 各至多 2, 洗澡清扫; 离线不增殖不积脏
     persoBase: null,           // 性格出生先验 [黏人,活泼,贪吃] 0-100; hatch 时由父代快照 ±15 漂移而来
     persoSnap: null,           // 死亡/重置时的行为性格快照 → 跨代漂移源
     lastThrow: -1,             // 玩家最近一次猜拳出招(黏人性格会模仿)
@@ -257,6 +258,21 @@ function applyDecay(h) {
 function moodCap() {
   const base = S.weight > fatLine() ? 75 : 100
   return isSick() ? Math.min(base, 60) : base
+}
+// ---------- 画布生活感(v0.3.0): 碎屑/便便落地 — 看得见的生活痕迹, 洗澡顺带清扫 ----------
+function dropEntity(k) {
+  const mine = S.entities.filter(e => e.k === k)
+  if (mine.length >= 2) S.entities.splice(S.entities.indexOf(mine[0]), 1) // 同类至多 2: 最旧的先风化
+  S.entities.push({ k, col: (Math.random() < 0.5 ? -1 : 1) * (10 + ((Math.random() * 7) | 0)), at: Date.now() }) // col=相对中轴偏移, 落在立绘两侧空地
+  if (k === 'poop') log(`${S.name} 在角落里拉了一小坨…下次洗澡时会一起清扫`)
+}
+function renderFloorDirt(bottomRow) { // 实体贴立绘底行(画布层): 立绘漫游路过会暂时遮挡, 走开重现
+  const mid = Math.floor(TERM_W / 2)
+  for (const e of S.entities) {
+    const c = mid + e.col
+    if (c < 2 || c > TERM_W - 2) continue // 极窄屏越界守卫
+    at(bottomRow, c, e.k === 'poop' ? fg(150, 105, 70) + '◍' + R : fg(230, 190, 90) + '.' + R)
+  }
 }
 function fatLine() { return SPECIES[S.species]?.baseWeight * 1.5 || 3 }
 function thinLine() { return SPECIES[S.species]?.baseWeight * 0.6 || 1 }
@@ -428,6 +444,7 @@ function act(kind) {
       const gain = sick ? Math.round(base / 2) : base
       const upset = noteFeed() // 记次在饱腹变化前(取喂前值)
       S.hunger = clamp(S.hunger + gain); S.weight += 0.15; S.stats.feed++
+      if (Math.random() < 0.4) dropEntity('crumb') // 吃饭掉渣: 四成概率落几粒碎屑
       S.careScore++; S.lastAct.feed = Date.now(); ok = true
       if (!upset) bubble(sick ? '没什么胃口…还是吃了' : '嗷呜嗷呜，好吃！'); break
     }
@@ -455,7 +472,9 @@ function act(kind) {
         else { S.sickType = ''; S.sickSince = 0; log(`${S.name} 洗掉了一身病气，痊愈了！`); bubble('洗完澡，病好啦！') }
       }
       else bubble('泡泡好舒服~（肚子有点饿了）')
-      S.dirtySince = 0; S.stats.bath++; S.careScore++; S.lastAct.bath = Date.now(); ok = true; break
+      S.dirtySince = 0; S.stats.bath++; S.careScore++; S.lastAct.bath = Date.now(); ok = true
+      if (S.entities.length) { S.entities = []; log('洗澡顺带把小窝打扫得干干净净') }
+      break
     }
     case 'play': {
       if (cdLeft('play') > 0) { bubble(`玩累了歇会儿（${cdLeft('play')}s）`); break }
@@ -598,10 +617,11 @@ function doChat() {
 }
 function newEgg() {
   // 保留 memorial/generation+1, 其余重置为 eggSelect
-  const memorial = S.memorial, gen = (S.generation || 1), ach = S.achievements, stats = S.stats
+  const memorial = S.memorial, gen = (S.generation || 1), ach = S.achievements, stats = S.stats, snap = S.persoSnap
   S = defaultState()
   S.memorial = memorial; S.generation = gen + 1; S.stage = 'eggSelect'
   S.achievements = ach; S.stats = stats // 成就与动作计数为驯主生涯制, 跨代保留
+  S.persoSnap = snap // 父代性格快照传下一代(±15 漂移)
   PAGE = 'main'
   checkAchievements()
   save()
@@ -865,6 +885,7 @@ function render() {
   }
   const eggShake = S.stage === 'egg' && hatchProgress() >= 0.75 && frame % 2 ? 1 : 0 // 临孵摇晃
   const artTop = 4, artLeft = Math.max(4, Math.floor((TERM_W - art[0].length) / 2) + eggShake + wanderOff + (S.stage === 'dying' ? (frame % 2 ? 1 : -1) : 0)) // 胖补边在原宽度内完成, 立绘不横跳
+  if (S.entities.length && (S.stage === 'alive' || S.stage === 'dying')) renderFloorDirt(artTop + art.length - 1) // 画布层先画, 立绘漫游路过暂时遮挡
   drawArt(art, artTop, artLeft, padPlan)
   // 状态符号
   const statusIcons = []
@@ -1298,6 +1319,9 @@ setInterval(() => {
   }
   if (S.stage === 'alive' || S.stage === 'dying') {
     applyDecay(SCALE / 3600)
+    // 画布生活感: 吃饱醒着的它每小时两成概率拉一小坨; 地上每件脏东西洁净衰减 +3/h(仅在线计入, 离线不积脏)
+    if (S.stage === 'alive' && S.awake && S.hunger > 50 && Math.random() < 0.2 * SCALE / 3600) dropEntity('poop')
+    if (S.entities.length) S.clean = dec(S.clean, 3 * S.entities.length, SCALE / 3600)
     if (S.clean < SICK_DIRTY) { if (!S.dirtySince) S.dirtySince = Date.now() }
     else S.dirtySince = 0
     // 生病判定: 脏病(低洁净持续); 闹肚子由投喂(喂食/零食)在 act() 触发
