@@ -26,22 +26,23 @@ const dispW = ch => { const c = ch.codePointAt(0); return (c < 0x80 || c === 0xb
 
 // ---------- 场景 ----------
 const now = Date.now()
-// 通用活体存档: lastEventAt/lastBegAt/lastEggWiggle 压到当前时刻 → 压制随机小剧场/乞讨/蛋晃, 保证帧确定
-// 字段值可为函数 → 场景启动时求值(时间敏感场景如弥留死线须锚定自身启动时刻, 免受串行累计漂移误杀)
+// 通用活体存档: 时间戳全部压到**场景自身启动时刻**(函数字段统一求值) → 压制随机小剧场/乞讨/蛋晃, 保证帧确定
+// 串行累计漂移会使"模块加载时的 now"距场景实际启动 >60s → catchUp 离线衰减/托底吃掉数值余量
+// (dying-78 死线误死 / obese-rescue-78 体重跌破胖线首触 2.88 / zero-thirst-78 被 30 托底抹掉归零气泡, 均此因)
 const mk = over => {
-  const o = {}
-  for (const k in over) o[k] = typeof over[k] === 'function' ? over[k]() : over[k]
-  return ({
+  const ev = o => { const r = {}; for (const k in o) r[k] = typeof o[k] === 'function' ? o[k]() : o[k]; return r }
+  const base = ev({
   version: 2, stage: 'alive', species: 'slime', name: '泡泡',
-  bornAt: now - H, lastSeen: now, hatchedAt: now - H + 60_000, generation: 1,
+  bornAt: now - H, lastSeen: () => Date.now(), hatchedAt: now - H + 60_000, generation: 1,
   hunger: 75, thirst: 75, clean: 75, mood: 75, energy: 75, weight: 1.2, awake: true,
   dirtySince: 0, dyingSince: 0, diedAt: 0, deathCause: '',
   heartSince: 0, sickSince: 0, obeseSince: 0, exhaustSince: 0, careScore: 8,
   stats: { feed: 0, snack: 0, water: 0, bath: 0, play: 0, touch: 0, dose: 0, rps: 0, chat: 0 },
   achievements: [], memorial: [], log: [], lastAct: {}, named: true,
-  lastEventAt: now, bubble: null, lastEggWiggle: now, askReset: false, lastBegAt: now,
-  helpHinted: true, touchLog: [], rps: null, ...o,
+  lastEventAt: () => Date.now(), bubble: null, lastEggWiggle: () => Date.now(), askReset: false, lastBegAt: () => Date.now(),
+  helpHinted: true, touchLog: [], rps: null, ...ev(over),
   })
+  return base
 }
 const dragon = { species: 'dragon', name: '喷火娃', careScore: 55, weight: 2.4 }
 const SCEN = [
@@ -62,6 +63,8 @@ const SCEN = [
   // 画布生活感(v0.3.0): 预置便便+碎屑 → 立绘底行两侧渲染可见字符('·' 点号文案区太常见, 以 '◍' 为准)
   { name: 'poop-canvas-78', w: 78, over: { entities: [{ k: 'poop', col: -12, at: now }, { k: 'crumb', col: 12, at: now }] }, keys: [], mark: ['◍'] },
   { name: 'poop-canvas-58', w: 58, over: { entities: [{ k: 'poop', col: -12, at: now }] }, keys: [], mark: ['◍'] },
+  // 离线小日记(v0.3.0): 离开 8h 归来 → mid 档日记一行(池随机, marker 取固定前缀)
+  { name: 'diary-return-78', w: 78, over: { lastSeen: now - 8 * H }, keys: [], mark: [], raw: ['小日记'] },
   // 参差双零倒挂修复: 弥留中单零死线照走 — thirst 死线 2s 到, 先于 30s 弥留, 12s 末帧应已长眠(未修则还弥留)
   { name: 'stagger-zero-78', w: 78, over: { stage: 'dying', dyingSince: now - 30_000, thirstSince: now - 118_000, hunger: 0, thirst: 0 }, ms: 12_000, keys: [], mark: ['长眠'] },
   // 肥胖救援链路: 过线警告(🍰+指引气泡) → 玩耍燃脂退线(🔥 热度, 🍰 消失)

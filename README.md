@@ -53,6 +53,7 @@ Terminals are where we live all day — so a pet should live there too, without 
 - **A personality of its own.** How you spend the days shapes it — cuddly, lively or gluttonous (visible on the stats page). It biases its rock-paper-scissors throws, how often it begs for attention, and nuzzle reactions — and drifts ±15 into the next generation.
 - **It knows the clock.** A morning greeting on first launch of the day, sleepy noon bubbles (1–2pm), a bedtime theater from 10:30pm, and a welcome-back line that scales with how long you were away.
 - **A lived-in little world.** Meals can scatter crumbs and a well-fed pet sometimes leaves a poop in the corner (2 of each, max). Every mess on the floor drains cleanliness faster (+3/h each) — bath time sweeps them all away.
+- **A tiny diary.** Come back after 30+ minutes and it notes down what it did while you were gone — naps, cloud-watching, or learning to listen for your footsteps.
 
 ## Install
 
